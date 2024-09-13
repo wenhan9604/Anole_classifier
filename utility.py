@@ -6,6 +6,7 @@ import numpy as np
 import threading
 import urllib
 import os
+import cv2
 
 #configs
 taxa = [116461, 36514, 36488, 36391, 36455]
@@ -32,4 +33,16 @@ def download_images_part(df):
                 urllib.request.urlretrieve(image_url, save_path)
         if index%1000 == 0:
             print("In Progress")
-download_images(file_path)
+
+def resize():
+    for subdir, dirs, images in os.walk(folder_path):
+        for img in images:
+            print(img)
+            if img.endswith('.jpg'):
+                im = cv2.imread(os.path.join(subdir,img))
+                if im is not None and im.shape != (256,256):
+                    im = cv2.resize(im,(256, 256))
+                    cv2.imwrite(os.path.join(subdir,img),im)
+
+
+resize()
