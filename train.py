@@ -3,6 +3,7 @@ from tensorflow import keras
 from keras import layers, models
 from keras.applications import MobileNetV2
 from keras.optimizers import Adam
+from sklearn.metrics import accuracy_score, classification_report
 from utility import *
 
 # Load the MobileNetV2 model pre-trained on ImageNet
@@ -26,8 +27,8 @@ model.compile(optimizer=Adam(learning_rate=0.001),
               metrics=['accuracy',tf.keras.metrics.Recall(),tf.keras.metrics.Precision()])
 
 # Data loading
-dataset, class_weight_dict, size = load_dataset_with_labels()
-train_dataset, test_dataset = train_test_split(dataset,size,0.8)
+dataset, class_weight_dict = load_dataset_with_labels()
+train_dataset, test_dataset = train_test_split(dataset,0.8)
 
 # Train the model
 history = model.fit(
@@ -58,7 +59,11 @@ history_fine = model.fit(
 # Save the entire model to a file
 model.save('F:/LizardCV/model.h5')
 
-results = model.evaluate(test_dataset, return_dict =True)
-print(results)
+#evaluate
+results = model.evaluate(test_dataset)
+print("Test loss:", results[0])
+if len(results) > 1:
+    for i, metric in enumerate(model.metrics_names[1:], start=1):
+        print(f"Test {metric}: {results[i]}")
 
 

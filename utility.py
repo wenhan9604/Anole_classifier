@@ -83,10 +83,12 @@ def load_dataset_with_labels():
     dataset = dataset.shuffle(buffer_size=1000)  # Adjust buffer size as needed
     dataset = dataset.batch(batch_size)
     
-    return dataset, class_weight_dict, len(df)
+    return dataset, class_weight_dict
 
-def train_test_split(dataset,size,train_pct):
-    train_size = int(size * train_pct)
+def train_test_split(dataset,train_pct):
+    # Define the split ratio
+    total_batches = len(dataset) 
+    train_size = int(0.8 * total_batches)  
     train_dataset = dataset.take(train_size)
     test_dataset = dataset.skip(train_size)
     return train_dataset, test_dataset
