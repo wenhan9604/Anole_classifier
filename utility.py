@@ -29,9 +29,18 @@ def download_images_part(df):
 
         if not pd.isnull(image_url) and 'https://inaturalist-open-data.s3.amazonaws.com/photos' in image_url:
             save_path = f"{folder_path}/Raw/{taxon_id}_{id}.jpg"
-            os.makedirs( os.path.dirname(save_path),exist_ok=True)
-            if not os.path.isfile(save_path):
-                urllib.request.urlretrieve(image_url, save_path)
+            try:
+                os.makedirs( os.path.dirname(save_path),exist_ok=True)
+                if not os.path.isfile(save_path):
+                    urllib.request.urlretrieve(image_url, save_path)
+                
+                image = tf.io.read_file(save_path)
+                image = tf.image.decode_image(image, channels=3)
+                image = tf.ensure_shape(image, [None, None, 3])
+                image = tf.image.resize(image, [256, 256])
+                image = image / 255.0  # Normalize to [0,1]
+            except:
+                print(save_path)
         if index%1000 == 0:
             print("In Progress")
 
@@ -44,13 +53,16 @@ def load_and_preprocess_image(path, label):
     image = tf.image.decode_image(image, channels=3)
     image = tf.ensure_shape(image, [None, None, 3])
     image = tf.image.resize(image, [256, 256])
+    if image.shape != (256,256,3):
+        print(path)
     image = image / 255.0  # Normalize to [0,1]
     label = tf.one_hot(label, depth=5)
-    return image, label
+    return image, label, path
+    
 
 def load_dataset_with_labels():
     # Path to the directory containing the images
-    image_dir = folder_path + "/Raw"
+    image_dir = folder_path + "/Raw2"
 
     # Get list of image file paths and their labels
     image_paths = []
@@ -64,7 +76,18 @@ def load_dataset_with_labels():
     
     # Create a DataFrame
     df = pd.DataFrame({'image_path': image_paths, 'label': labels})
-
+    for index, row in df.iterrows():
+        try:
+            path = row['image_path']
+            image = tf.io.read_file(path)
+            image = tf.image.decode_image(image, channels=3)
+            image = tf.ensure_shape(image, [None, None, 3])
+            image = tf.image.resize(image, [256, 256])
+            if image.shape != (256,256,3):
+                print(f'Corrumpted Image: {path}')
+            image = image / 255.0  # Normalize to [0,1]
+        except:
+            print(f'Corrumpted Image: {path}')
     # Map labels to integer indices
     label_names = sorted(set(labels))
     label_to_index = {label: index for index, label in enumerate(label_names)}
@@ -77,7 +100,7 @@ def load_dataset_with_labels():
     #Create tensorflow dataset
     dataset = tf.data.Dataset.from_tensor_slices((df['image_path'].values, df['label_index'].values))
     dataset = dataset.map(load_and_preprocess_image, num_parallel_calls=tf.data.AUTOTUNE)
-    
+    print(dataset)
     # Batch and shuffle dataset
     batch_size = 32
     dataset = dataset.shuffle(buffer_size=1000)  # Adjust buffer size as needed
@@ -88,21 +111,10 @@ def load_dataset_with_labels():
 def train_test_split(dataset,train_pct):
     # Define the split ratio
     total_batches = len(dataset) 
-    train_size = int(0.8 * total_batches)  
+    train_size = int(train_pct * total_batches)  
     train_dataset = dataset.take(train_size)
     test_dataset = dataset.skip(train_size)
     return train_dataset, test_dataset
-
-
-#ignore
-def resize():
-    for subdir, dirs, images in os.walk(folder_path):
-        for img in images:
-            if img.endswith('.jpg'):
-                im = cv2.imread(os.path.join(subdir,img))
-                if im is not None and im.shape != (256,256):
-                    im = cv2.resize(im,(256, 256))
-                    cv2.imwrite(os.path.join(subdir,img),im)
 
 
 #download_images(file_path)
