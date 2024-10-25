@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, classification_report
 from utility import *
 from keras.optimizers import Adam
+from collections import Counter
 
 # Load the model
 model = tf.keras.models.load_model('F:/LizardCV/model.h5')
@@ -14,12 +15,11 @@ model.compile(optimizer=Adam(learning_rate=0.001),
 model.summary()
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels()
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2')
 dataset_for_testing = dataset.map(lambda image, label, id: (tf.image.resize(image, [256, 256]), label))
 dataset_for_testing.batch(32)
 
 print("Dataset loaded")
-
 
 # Make predictions on the test data
 """
@@ -49,9 +49,10 @@ predicted_classes = np.argmax(predictions, axis=1)
 comparison = list(zip(predicted_classes, labels))
 
 # Display a few examples
-for i in range(50):  # Display first 10 comparisons
-    
-    print(f"Predicted: {predicted_classes[i]}, True Label: {truth[i]}")
+predicted_classes_sum = Counter(predicted_classes)
+print(f'Prediction label counts: {predicted_classes_sum}')
+truth_sum = Counter(truth)
+print(f'True label counts: {truth_sum}')
 
 # Calculate accuracy
 accuracy = accuracy_score(truth, predicted_classes)

@@ -60,9 +60,9 @@ def load_and_preprocess_image(path, label):
     return image, label, path
     
 
-def load_dataset_with_labels():
+def load_dataset_with_labels(folder):
     # Path to the directory containing the images
-    image_dir = folder_path + "/Raw2"
+    image_dir = folder
 
     # Get list of image file paths and their labels
     image_paths = []
