@@ -8,6 +8,7 @@ import urllib
 import os
 import cv2
 import re
+from collections import Counter
 
 #configs
 taxa = [116461, 36514, 36488, 36391, 36455]
@@ -59,10 +60,38 @@ def load_and_preprocess_image(path, label):
     label = tf.one_hot(label, depth=5)
     return image, label, path
     
+def crop(image, detector):
+    det_image = tf.image.resize(image, [300, 300])
+    input_tensor = tf.convert_to_tensor(det_image)
+    input_tensor = input_tensor[tf.newaxis, ...]
+    detections = detector(input_tensor)
+    output_tensor = detections[0] 
+    output_array = output_tensor.numpy()
+    xmin, ymin, xmax, ymax = output_array[:4]
+    xmin = int(xmin * 320)
+    ymin = int(ymin * 320)
+    xmax = int(xmax * 320)
+    ymax = int(ymax * 320)
+    crop_width = xmax - xmin
+    crop_height = ymax - ymin
+    # Crop the image using the bounding box
+    cropped_image = tf.image.crop_to_bounding_box(
+        det_image,
+        offset_height=ymin,
+        offset_width=xmin,
+        target_height=crop_height,
+        target_width=crop_width
+        )
+    return cropped_image
 
-def load_dataset_with_labels(folder):
+def load_dataset_with_labels(folder,detector, max_samples_per_class=1000):
     # Path to the directory containing the images
     image_dir = folder
+
+    # Get list of image file paths and their labels
+    image_paths = []
+    labels = []
+    class_counts = Counter()
 
     # Get list of image file paths and their labels
     image_paths = []
@@ -71,8 +100,11 @@ def load_dataset_with_labels(folder):
         if filename.endswith(('.jpg', '.jpeg', '.png')):
             image_path = os.path.join(image_dir, filename)
             label = extract_label_from_filename(filename)
-            image_paths.append(image_path)
-            labels.append(label)
+            
+        if class_counts[label] < max_samples_per_class or max_samples_per_class == 0:
+                image_paths.append(image_path)
+                labels.append(label)
+                class_counts[label] += 1
     
     # Create a DataFrame
     df = pd.DataFrame({'image_path': image_paths, 'label': labels})
@@ -82,12 +114,17 @@ def load_dataset_with_labels(folder):
             image = tf.io.read_file(path)
             image = tf.image.decode_image(image, channels=3)
             image = tf.ensure_shape(image, [None, None, 3])
-            image = tf.image.resize(image, [256, 256])
-            if image.shape != (256,256,3):
-                print(f'Corrumpted Image: {path}')
+            #Detect and crop
+            if detector is not None:
+                cropped = crop(image, detector)
+                image = tf.image.resize(cropped, [224, 224])
+            else:
+                image = tf.image.resize(image, [224, 224])
+            if image.shape != (224,224,3):
+                print(f'Corrupted Image: {path}  Shape: {image.shape}')
             image = image / 255.0  # Normalize to [0,1]
         except:
-            print(f'Corrumpted Image: {path}')
+            print(f'Corrupted Image: {path} Shape: {image.shape}')
     # Map labels to integer indices
     label_names = sorted(set(labels))
     label_to_index = {label: index for index, label in enumerate(label_names)}
@@ -96,16 +133,26 @@ def load_dataset_with_labels(folder):
     #Class weights
     class_weights = compute_class_weight('balanced', classes=np.unique(df['label_index']), y=df['label_index'])
     class_weight_dict = dict(enumerate(class_weights))
+    print(f'Class weights: {class_weight_dict}')
+    """#Under sampling
+    class_0_df = df[df['label_index'] == 0]
+    class_4_df = df[df['label_index'] == 4]
+    other_classes_df = df[df['label_index'] != 0]
+    other_classes_df = df[df['label_index'] != 4]
+    class_0_sampled = class_0_df.sample(frac=0.1, random_state=42)
+    class_4_sampled = class_4_df.sample(frac=0.1, random_state=42)
+    df = pd.concat([class_0_sampled, class_4_sampled, other_classes_df])
+    """
 
     #Create tensorflow dataset
     dataset = tf.data.Dataset.from_tensor_slices((df['image_path'].values, df['label_index'].values))
     dataset = dataset.map(load_and_preprocess_image, num_parallel_calls=tf.data.AUTOTUNE)
-    print(dataset)
+    
     # Batch and shuffle dataset
     batch_size = 32
     dataset = dataset.shuffle(buffer_size=1000)  # Adjust buffer size as needed
     dataset = dataset.batch(batch_size)
-    
+    print(class_counts)
     return dataset, class_weight_dict
 
 def train_test_split(dataset,train_pct):

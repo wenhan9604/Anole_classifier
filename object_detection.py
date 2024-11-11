@@ -24,7 +24,7 @@ detection_model = tf.keras.models.load_model('F:/LizardCV/detection.h5')
 # Load an input image
 image = tf.io.read_file(get_random_file('F:/LizardCV/Raw/'))
 image = tf.image.decode_jpeg(image, channels=3)  # or tf.image.decode_png if it's a PNG
-image = tf.image.resize(image, [320, 320])  # Resize to the input size expected by the model
+image = tf.image.resize(image, [300, 300])  # Resize to the input size expected by the model
 #image = tf.cast(image, tf.uint8) 
 input_tensor = tf.convert_to_tensor(image)
 input_tensor = input_tensor[tf.newaxis, ...]  # Add batch dimension
@@ -63,13 +63,13 @@ colors = np.random.randint(0, 255, size=(len(boxes), 3), dtype='uint8')
 
 # Draw bounding boxes on the original image
 for i in range(len(boxes)):
-    ymin, xmin, ymax, xmax = boxes[i]
+    xmin, ymin, xmax, ymax = boxes[i]
 
     # Convert to original image scale
-    xmin = int((xmin-0.1) * image.shape[1])
-    xmax = int((xmax+0.1) * image.shape[1])
-    ymin = int((ymin-0.1) * image.shape[0])
-    ymax = int((ymax+0.1) * image.shape[0])
+    xmin = int((xmin) * image.shape[1])
+    xmax = int((xmax) * image.shape[1])
+    ymin = int((ymin) * image.shape[0])
+    ymax = int((ymax) * image.shape[0])
     
     # Draw bounding box and label
     cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color=colors[i].tolist(), thickness=2)

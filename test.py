@@ -5,8 +5,11 @@ from utility import *
 from keras.optimizers import Adam
 from collections import Counter
 
+# Load object detection model
+detection_model = tf.keras.models.load_model('F:/LizardCV/detection.h5')
+
 # Load the model
-model = tf.keras.models.load_model('F:/LizardCV/model.h5')
+model = tf.keras.models.load_model('F:/LizardCV/test_model.h5')
 model.compile(optimizer=Adam(learning_rate=0.001),
               loss='categorical_crossentropy',
               metrics=['accuracy',tf.keras.metrics.Recall(),tf.keras.metrics.Precision()])
@@ -15,8 +18,8 @@ model.compile(optimizer=Adam(learning_rate=0.001),
 model.summary()
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2')
-dataset_for_testing = dataset.map(lambda image, label, id: (tf.image.resize(image, [256, 256]), label))
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2',detection_model,3000)
+dataset_for_testing = dataset.map(lambda image, label, id: (tf.image.resize(image, [224, 224]), label))
 dataset_for_testing.batch(32)
 
 print("Dataset loaded")
@@ -44,6 +47,7 @@ print('Labels extracted')
 #test_dataset = test_dataset.map(lambda x, y: x)
 predictions = model.predict(dataset_for_testing)
 predicted_classes = np.argmax(predictions, axis=1)
+top_two = np.argsort(predictions,axis=1)[:,-2:]
 
 # Combine predictions and true labels into a single array for comparison
 comparison = list(zip(predicted_classes, labels))
@@ -57,6 +61,9 @@ print(f'True label counts: {truth_sum}')
 # Calculate accuracy
 accuracy = accuracy_score(truth, predicted_classes)
 print(f"Accuracy: {accuracy}")
+correct_top_two = [1 if truth[i] in top_two[i] else 0 for i in range(len(truth))]
+top_two_acc = np.mean(correct_top_two)
+print(f'Top 2 acc: {top_two_acc}')
 
 # Generate a classification report
 print(classification_report(truth, predicted_classes))

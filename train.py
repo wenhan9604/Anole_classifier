@@ -7,8 +7,11 @@ from sklearn.metrics import accuracy_score, classification_report
 from utility import *
 from collections import Counter
 
+# Load object detection model
+detection_model = tf.keras.models.load_model('F:/LizardCV/detection.h5')
+
 # Load the MobileNetV2 model pre-trained on ImageNet
-base_model = MobileNetV2(input_shape=(256, 256, 3), include_top=False, weights='imagenet')
+base_model = MobileNetV2(input_shape=(224, 224, 3), include_top=False, weights='imagenet')
 
 # Freeze the base model (i.e., make its weights non-trainable)
 base_model.trainable = False
@@ -28,8 +31,8 @@ model.compile(optimizer=Adam(learning_rate=0.001),
               metrics=['accuracy',tf.keras.metrics.Recall(),tf.keras.metrics.Precision()])
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw')
-train_dataset = dataset.map(lambda image, label, id: (tf.image.resize(image, [256, 256]), label))
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw',None,3000)#detection_model)
+train_dataset = dataset.map(lambda image, label, id: (tf.image.resize(image, [224, 224]), label))
 
 # Train the model
 history = model.fit(
@@ -58,7 +61,7 @@ history_fine = model.fit(
 )
 
 # Save the entire model to a file
-model.save('F:/LizardCV/model.h5')
+model.save('F:/LizardCV/test_model.h5')
 
 unbatched_ds = train_dataset.unbatch()
 
