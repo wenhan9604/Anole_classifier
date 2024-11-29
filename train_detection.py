@@ -77,7 +77,7 @@ def load_image_and_labels(image_path, annotation):
     bboxes= parse_annotations(annotation)
     #bboxes = np.concatenate([bboxes, c_score.reshape(-1, 1)], axis=-1)
     #bboxes = tf.ragged.constant(bboxes, dtype=tf.float32)
-    classes = tf.convert_to_tensor(tf.zeros((tf.shape(bboxes)), dtype=tf.float32))
+    classes = tf.convert_to_tensor(tf.zeros((tf.shape(bboxes)[0]), dtype=tf.float32))
 
     # List to hold rotated images and boxes
     outputs = []
@@ -95,12 +95,13 @@ def load_dataset(annotations_folder):
     bboxes = []
     classes = []
     dataset = []
+    bounding_boxes = {"boxes": [], "classes": []}
     # Iterate through JSON files in the specified folder
     for filename in os.listdir(annotations_folder):
         if filename.endswith('.json'):
             json_path = os.path.join(annotations_folder, filename)
             annotation = load_json_annotations(json_path)
-            outputs = load_image_and_labels(f'F:/LizardCV/bbox/{annotation["imagePath"]}',annotation)
+            outputs = load_image_and_labels(f'C:/Lizards/bbox/{annotation["imagePath"]}',annotation)
             for row in outputs:
                 images.append(row[0])
                 bboxes.append(row[1]["bbox"])
@@ -109,18 +110,20 @@ def load_dataset(annotations_folder):
 
     # Create dataset from image paths and annotations
     images = tf.stack(images)
-    #bboxes = tf.ragged.constant(bboxes, dtype=tf.float32)  # Ragged for variable-length boxes
-    #classes = tf.ragged.constant(classes, dtype=tf.int32)  # Ragged for variable-length classes
-
+    bounding_boxes["boxes"] = bboxes
+    bounding_boxes["classes"] = classes
     # Return a tf.data.Dataset
     dataset = tf.data.Dataset.from_tensor_slices({
-        "image": images,
-        "bbox": bboxes,
-        "classes": classes
+        "images": images,
+        "bounding_boxes": bounding_boxes
     })
    
     dataset = dataset.cache().shuffle(1000).batch(4).prefetch(tf.data.AUTOTUNE)
 
+    for batch in dataset.take(1):
+        print("Images shape:", batch["images"].shape)
+        print("Boxes shape:", batch["bounding_boxes"]["boxes"].shape)
+        print("Classes shape:", batch["bounding_boxes"]["classes"].shape)
     return dataset
 
 def smooth_l1_loss(y_true, y_pred, delta=1.0):
@@ -148,7 +151,7 @@ def custom_loss(y_true, y_pred):
     return total_loss
 
 # Example usage of the dataset loader
-annotations_folder = 'F:/LizardCV/bbox'  # Path where JSON files are stored
+annotations_folder = 'C:/Lizards/bbox'  # Path where JSON files are stored
 train_dataset = load_dataset(annotations_folder)
 print('Loaded Dataset')
 
@@ -182,4 +185,4 @@ history = yolo.fit(
     epochs=10
 )
 
-yolo.save('F:/LizardCV/detection.h5')
+yolo.save('C:/Lizards/Anole_Classifier/detection.h5')
