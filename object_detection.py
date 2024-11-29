@@ -53,7 +53,7 @@ input_tensor = input_tensor[tf.newaxis, ...]  # Add batch dimension
 image_np = image.numpy()  # Convert to NumPy array for OpenCV
 
 # Run object detection
-detections = detection_model(input_tensor)
+detections = detection_model.predict(input_tensor)
 print(detections) #This is giving shape=(1, 2100, 64) for boxes. Something is wrong with that.
 # Extract and preprocess detections
 boxes = detections['boxes'].numpy()[0]  # Remove batch dimension
