@@ -1,10 +1,10 @@
 import os
 import json
 import tensorflow as tf
-import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-from tensorflow.keras.losses import MeanAbsoluteError
+#import matplotlib.pyplot as plt
+from tensorflow.keras.losses import Huber
+import keras_cv
 
 def load_json_annotations(json_path):
     with open(json_path, 'r') as f:
@@ -71,47 +71,56 @@ def load_image_and_labels(image_path, annotation):
     original_size = tf.shape(image)[:2]  # Height, Width
     
     # Resize the image to a standard size
-    image_resized = tf.image.resize(image, [300, 300])
+    image_resized = tf.image.resize(image, [320, 320])
     
     # Get the corresponding annotations for this image
     bboxes= parse_annotations(annotation)
     #bboxes = np.concatenate([bboxes, c_score.reshape(-1, 1)], axis=-1)
-    bboxes = tf.convert_to_tensor(bboxes, dtype=tf.float32)
+    #bboxes = tf.ragged.constant(bboxes, dtype=tf.float32)
+    classes = tf.convert_to_tensor(tf.zeros((tf.shape(bboxes)), dtype=tf.float32))
 
     # List to hold rotated images and boxes
-    images = [image_resized]
-    all_bboxes = [bboxes]
+    outputs = []
     angles = [90, 180]#, 270]
+    outputs.append((image_resized, {"bbox": bboxes, "classes": classes}))
     for angle in angles:
         rotated_image = rotate_image(image_resized, angle)
         rotated_bboxes = rotate_bboxes(bboxes, angle)
-        images.append(rotated_image)
-        all_bboxes.append(tf.convert_to_tensor(rotated_bboxes, dtype=tf.float32))
+        outputs.append((rotated_image,{"bbox": rotated_bboxes, "classes": classes}))
 
-    return images, all_bboxes, original_size
+    return outputs
 
 def load_dataset(annotations_folder):
-    bboxes = []
     images = []
-    
+    bboxes = []
+    classes = []
+    dataset = []
     # Iterate through JSON files in the specified folder
     for filename in os.listdir(annotations_folder):
         if filename.endswith('.json'):
             json_path = os.path.join(annotations_folder, filename)
             annotation = load_json_annotations(json_path)
-            img_list, bbox_list, origional_size = load_image_and_labels(f'F:/LizardCV/bbox/{annotation["imagePath"]}',annotation)
-            
-            for img, bbox in zip(img_list, bbox_list):
-                images.append(img)
-                bboxes.append(bbox)
-    
+            outputs = load_image_and_labels(f'F:/LizardCV/bbox/{annotation["imagePath"]}',annotation)
+            for row in outputs:
+                images.append(row[0])
+                bboxes.append(row[1]["bbox"])
+                classes.append(row[1]["classes"])
+    #images_tensor = tf.convert_to_tensor(images)
+
     # Create dataset from image paths and annotations
-    dataset = tf.data.Dataset.from_tensor_slices((images, bboxes))
-    print(dataset.cardinality().numpy())
-    dataset = dataset.batch(8)
-    #for batch in dataset.take(1):
-    #    print(batch)
-    print(dataset.element_spec)
+    images = tf.stack(images)
+    #bboxes = tf.ragged.constant(bboxes, dtype=tf.float32)  # Ragged for variable-length boxes
+    #classes = tf.ragged.constant(classes, dtype=tf.int32)  # Ragged for variable-length classes
+
+    # Return a tf.data.Dataset
+    dataset = tf.data.Dataset.from_tensor_slices({
+        "image": images,
+        "bbox": bboxes,
+        "classes": classes
+    })
+   
+    dataset = dataset.cache().shuffle(1000).batch(4).prefetch(tf.data.AUTOTUNE)
+
     return dataset
 
 def smooth_l1_loss(y_true, y_pred, delta=1.0):
@@ -142,41 +151,35 @@ def custom_loss(y_true, y_pred):
 annotations_folder = 'F:/LizardCV/bbox'  # Path where JSON files are stored
 train_dataset = load_dataset(annotations_folder)
 print('Loaded Dataset')
-# Load a pre-trained object detection model (SSD MobileNet V2 here as an example)
-#base_model = tf.keras.models.load_model('C:/Users/Dallaire/Desktop/LizardsCV/models/base.h5')
-base_model = tf.keras.applications.MobileNetV2(input_shape=(300, 300, 3), include_top=False, weights='imagenet')
-# Freeze the base model layers to retain pre-trained features
-base_model.trainable = False
 
-# Add custom detection layers (you can modify the layers depending on your classes and bounding boxes)
-x = base_model.output
-x = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)  # Detection-specific conv layer
-x = tf.keras.layers.GlobalAveragePooling2D()(x)
-x = tf.keras.layers.Dense(128, activation='relu')(x)
-output_boxes = tf.keras.layers.Dense(4, activation='sigmoid')(x)  # 4 for bounding box coords
+backbone = keras_cv.models.YOLOV8Backbone.from_preset(
+    "yolo_v8_m_backbone_coco",
+    load_weights=True
+)
+ 
+yolo = keras_cv.models.YOLOV8Detector(
+    num_classes=1,
+    bounding_box_format="xyxy",
+    backbone=backbone,
+    fpn_depth=3,
+)
+ 
+yolo.summary()
 
-# Create the full model for object detection
-detection_model = tf.keras.Model(inputs=base_model.input, outputs=output_boxes)
+optimizer = tf.keras.optimizers.Adam(
+    learning_rate=0.001,
+    global_clipnorm=10.0,
+)
+ 
+yolo.compile(
+    optimizer=optimizer, classification_loss="binary_crossentropy", box_loss="ciou"
+) 
+	
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="logs_yolov8large")
 
-# Compile the model with appropriate loss functions and an optimizer
-detection_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001 / 10), loss=MeanAbsoluteError(), metrics=['mae'])
-print('Compiled')
+history = yolo.fit(
+    train_dataset,
+    epochs=10
+)
 
-# Train the model (initial training with frozen backbone)
-history = detection_model.fit(train_dataset, epochs=10)
-
-# Fine-tuning: Unfreeze some of the layers of the base model for further training
-detection_model.trainable = True
-fine_tune_at = len(detection_model.layers) // 2  # Unfreeze half of the layers for fine-tuning
-
-for layer in detection_model.layers[:fine_tune_at]:
-    layer.trainable = False  # Keep earlier layers frozen
-
-# Compile again with a lower learning rate for fine-tuning
-detection_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001 / 10), loss=MeanAbsoluteError(), metrics=['mae'])
-
-# Continue training for fine-tuning
-fine_tune_history = detection_model.fit(train_dataset, epochs=10)
-
-# Save the fine-tuned model for inference
-detection_model.save('F:/LizardCV/detection.h5')
+yolo.save('F:/LizardCV/detection.h5')

@@ -134,15 +134,6 @@ def load_dataset_with_labels(folder,detector, max_samples_per_class=1000):
     class_weights = compute_class_weight('balanced', classes=np.unique(df['label_index']), y=df['label_index'])
     class_weight_dict = dict(enumerate(class_weights))
     print(f'Class weights: {class_weight_dict}')
-    """#Under sampling
-    class_0_df = df[df['label_index'] == 0]
-    class_4_df = df[df['label_index'] == 4]
-    other_classes_df = df[df['label_index'] != 0]
-    other_classes_df = df[df['label_index'] != 4]
-    class_0_sampled = class_0_df.sample(frac=0.1, random_state=42)
-    class_4_sampled = class_4_df.sample(frac=0.1, random_state=42)
-    df = pd.concat([class_0_sampled, class_4_sampled, other_classes_df])
-    """
 
     #Create tensorflow dataset
     dataset = tf.data.Dataset.from_tensor_slices((df['image_path'].values, df['label_index'].values))

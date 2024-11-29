@@ -26,19 +26,29 @@ model = models.Sequential([
 ])
 
 # Compile the model
-model.compile(optimizer=Adam(learning_rate=0.001),
-              loss='categorical_crossentropy',
+model.compile(optimizer=Adam(learning_rate=0.00001),
+              loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
               metrics=['accuracy',tf.keras.metrics.Recall(),tf.keras.metrics.Precision()])
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw',None,3000)#detection_model)
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw',None,10000)
 train_dataset = dataset.map(lambda image, label, id: (tf.image.resize(image, [224, 224]), label))
+#train_dataset = train_dataset.map(lambda image, label: (
+#    tf.image.resize(tf.image.random_flip_left_right(tf.image.random_brightness(image, 0.2)), [224, 224]), label
+#))
+# Define EarlyStopping callback to monitor validation loss
+early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+    monitor='loss',  # You can also use 'val_accuracy' or another metric
+    patience=5,          # Number of epochs to wait for improvement
+    restore_best_weights=True
+)
 
 # Train the model
 history = model.fit(
     train_dataset,
-    epochs=10,
-    class_weight=class_weight_dict
+    epochs=20,
+    class_weight=class_weight_dict,
+    callbacks=[early_stopping_callback]
 )
 
 # Unfreeze some layers of the base model for fine-tuning
@@ -49,15 +59,16 @@ for layer in base_model.layers[:fine_tune_at]:
     layer.trainable = False
 
 # Recompile the model with a lower learning rate for fine-tuning
-model.compile(optimizer=Adam(learning_rate=0.0001),
+model.compile(optimizer=Adam(learning_rate=0.000001),
               loss='categorical_crossentropy',
               metrics=['accuracy',tf.keras.metrics.Recall(),tf.keras.metrics.Precision()])
 
 # Continue training (fine-tuning)
 history_fine = model.fit(
     train_dataset,
-    epochs=10,
-    class_weight=class_weight_dict
+    epochs=20,
+    class_weight=class_weight_dict,
+    callbacks=[early_stopping_callback]
 )
 
 # Save the entire model to a file

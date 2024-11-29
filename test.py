@@ -18,7 +18,7 @@ model.compile(optimizer=Adam(learning_rate=0.001),
 model.summary()
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2',detection_model,3000)
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2',None,3000)
 dataset_for_testing = dataset.map(lambda image, label, id: (tf.image.resize(image, [224, 224]), label))
 dataset_for_testing.batch(32)
 
@@ -64,6 +64,19 @@ print(f"Accuracy: {accuracy}")
 correct_top_two = [1 if truth[i] in top_two[i] else 0 for i in range(len(truth))]
 top_two_acc = np.mean(correct_top_two)
 print(f'Top 2 acc: {top_two_acc}')
+
+truth_to_predictions = {}
+for i in range(len(truth)):
+    true_label = truth[i]
+    predicted_label = predicted_classes[i]
+    if true_label not in truth_to_predictions:
+        truth_to_predictions[true_label] = []
+    truth_to_predictions[true_label].append(predicted_label)
+
+print("Truth-to-Predictions mapping:")
+for true_label, predictions in truth_to_predictions.items():
+    print(f"True Label {true_label}: {Counter(predictions)}")
+
 
 # Generate a classification report
 print(classification_report(truth, predicted_classes))
