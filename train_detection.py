@@ -34,7 +34,7 @@ def parse_annotations(annotation):
     return bboxes
 
 def rotate_bboxes(bboxes, angle):
-    """Adjust bounding box coordinates based on the rotation angle."""
+    #Adjust bounding box coordinates based on the rotation angle.
     rotated_bboxes = []
     for bbox in bboxes:
         xmin, ymin, xmax, ymax = bbox
