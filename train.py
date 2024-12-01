@@ -7,6 +7,10 @@ from sklearn.metrics import accuracy_score, classification_report
 from utility import *
 from collections import Counter
 
+"""
+Training script for the 5 class classifier.
+"""
+
 # Load object detection model
 detection_model = tf.keras.models.load_model('F:/LizardCV/detection.h5')
 

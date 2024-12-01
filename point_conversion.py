@@ -1,6 +1,10 @@
 import json
 import os
 
+"""
+Enforces a top-left, bottom-right standard in the annotation files.
+"""
+
 # Define the folder containing the JSON files
 folder_path = "F:/LizardCV/bbox"
 

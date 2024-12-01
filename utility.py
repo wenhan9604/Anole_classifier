@@ -10,6 +10,10 @@ import cv2
 import re
 from collections import Counter
 
+"""
+Utility scripts to load data. Includes script to download the images from the exports of iNaturalist. Change file_path and uncomment download_images() at end of file.
+"""
+
 #configs
 taxa = [116461, 36514, 36488, 36391, 36455]
 folder_path = 'F:/LizardCV'

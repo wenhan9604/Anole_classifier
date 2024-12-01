@@ -6,6 +6,10 @@ from utility import *
 from sklearn.metrics import classification_report
 import numpy as np
 
+"""
+Training for the one-vs all ensemble of classifiers. Testing at the end of training.
+"""
+
 ensemble_models = None
 
 # Function to build individual models
@@ -118,7 +122,7 @@ if ensemble_models is None:
         ensemble_models.append(model)
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2',None,3000)
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw-Test',None,3000)
 dataset_for_testing = dataset.map(lambda image, label, id: (tf.image.resize(image, [224, 224]), label))
 dataset_for_testing.batch(32)
 # Unbatch the dataset to get individual elements

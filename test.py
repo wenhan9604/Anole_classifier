@@ -5,6 +5,10 @@ from utility import *
 from keras.optimizers import Adam
 from collections import Counter
 
+"""
+Testing for the one-hot encoded model.
+"""
+
 # Load object detection model
 detection_model = tf.keras.models.load_model('F:/LizardCV/detection.h5')
 
@@ -18,20 +22,14 @@ model.compile(optimizer=Adam(learning_rate=0.001),
 model.summary()
 
 # Data loading
-dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw2',None,3000)
+"""
+Second argument is if object detection is used to crop the image. Third argument is the maximum size of each class loaded into the dataset
+"""
+dataset, class_weight_dict = load_dataset_with_labels('F:/LizardCV/Raw-Test',None,3000)
 dataset_for_testing = dataset.map(lambda image, label, id: (tf.image.resize(image, [224, 224]), label))
 dataset_for_testing.batch(32)
 
 print("Dataset loaded")
-
-# Make predictions on the test data
-"""
-results = model.evaluate(dataset_for_testing)
-print("Test loss:", results[0])
-if len(results) > 1:
-    for i, metric in enumerate(model.metrics_names[1:], start=1):
-        print(f"Test {metric}: {results[i]}")
-"""
 
 #Prediction method
 # Unbatch the dataset to get individual elements

@@ -6,6 +6,10 @@ import numpy as np
 from tensorflow.keras.losses import Huber
 import keras_cv
 
+"""
+Training script for the object detection model
+"""
+
 def load_json_annotations(json_path):
     with open(json_path, 'r') as f:
         annotations = json.load(f)

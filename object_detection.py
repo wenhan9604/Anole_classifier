@@ -7,6 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import keras_cv
 
+"""
+Selects a random file to test Object detetion on.
+"""
+
 def get_random_file(folder_path):
     # Get a list of all files in the folder
     files = os.listdir(folder_path)
