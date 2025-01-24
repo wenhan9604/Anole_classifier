@@ -16,8 +16,8 @@ Utility scripts to load data. Includes script to download the images from the ex
 
 #configs
 taxa = [116461, 36514, 36488, 36391, 36455]
-folder_path = 'F:/LizardCV'
-file_path = 'F:/LizardCV/116461&36514.csv' #modify with file name
+folder_path = 'C:/Projects/OMSCS/Lizard_Classification/Anole_classifier_Prev/'
+file_path = 'C:/Projects/OMSCS/Lizard_Classification/Anole_classifier_Prev/36488&36391&36455.csv' #modify with file name
 
 def download_images(filepath):
     df = pd.read_csv(filepath)
@@ -159,4 +159,4 @@ def train_test_split(dataset,train_pct):
     return train_dataset, test_dataset
 
 
-#download_images(file_path)
+download_images(file_path)
