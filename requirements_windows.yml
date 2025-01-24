@@ -1,0 +1,22 @@
+# Installing older version of tensorflow==2.10 because it's the only supported version for Windows Native machine
+# Instructions:
+# Install the following packages with command conda create -f requirements_window_native.yml
+# Then install tensorflow with commands below. [https://www.tensorflow.org/install/pip]
+# conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0
+# pip install "tensorflow<2.11" 
+name: lizard_class
+channels:
+  - defaults
+  - conda-forge
+  - anaconda
+dependencies:
+  - python=3.10
+  - pip=24.2
+  - pip:
+    - numpy==1.26.4
+    - matplotlib
+    - keras==3.7.0
+    - opencv-python==4.10.0.84
+    - wheel==0.44.0
+    - pandas
+    - scikit-learn
