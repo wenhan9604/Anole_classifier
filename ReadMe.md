@@ -36,6 +36,20 @@ To download the dataset use the utility.py file. The file path must be changed t
 This dataset is generated using iNaturalist export: https://www.inaturalist.org/observations/export
 Using queries: ?quality_grade=research&identifications=any&field%3Abanded=yes&taxon_ids%5B%5D=36488%2C36391%2C36455, ?quality_grade=research&identifications=any&field%3Abanded=yes&taxon_ids%5B%5D=11646%2C36514
 
+Data Count (Species Name, Taxon ID, Count)
+
+Knight Anole (Anolis Equestris), 36391, 2301
+Crested Anole (Anolis cristatellus), 36488, 6075
+Bark Anole (Anolis distichus), 36455, 2671
+Green Anole (Anolis carolinensis), 36514, 44242 (not fully downloaded)
+Brown Anole (Anolis sagrei), 116461, 44756 (not fully downloaded)
+
+To upload to Roboflow:
+
+$ roboflow login
+$ roboflow import -w wen-han-chia-3l2oy -p anole_annotate /path/to/data
+
+
 Example structure:
 
 project/
