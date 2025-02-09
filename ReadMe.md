@@ -34,7 +34,7 @@ The dataset used for this project consists of labeled images of different anole 
 To download the dataset use the utility.py file. The file path must be changed to one of the csv files and the invoktion uncommented.
 
 This dataset is generated using iNaturalist export: https://www.inaturalist.org/observations/export
-Using queries: ?quality_grade=research&identifications=any&field%3Abanded=yes&taxon_ids%5B%5D=36488%2C36391%2C36455, ?quality_grade=research&identifications=any&field%3Abanded=yes&taxon_ids%5B%5D=11646%2C36514
+Using queries: ?quality_grade=research&identifications=any&field%3Abanded=yes&taxon_ids%5B%5D=36488%2C36391%2C36455, ?quality_grade=research&identifications=any&field%3Abanded=yes&taxon_ids%5B%5D=116461%2C36514
 
 Data Count (Species Name, Taxon ID, Count)
 
