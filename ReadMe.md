@@ -2,6 +2,10 @@
 
 The Florida Anole Species Classification project aims to develop a robust machine learning pipeline for identifying five common Anolis species from photographs, primarily to support a community science initiative with middle school students in Miami. Building upon an extensive dataset of over 80,000 verified iNaturalist photographs, this project seeks to improve the current classification system, which, despite having access to substantial training data, currently achieves only 35% accuracy (compared to a random baseline of 20%). The development of this classification pipeline will serve as the foundation for a broader educational tool, whether implemented as a mobile application or web platform, that enables students to receive immediate probability-based species identification feedback before submitting their observations to iNaturalist, thereby enhancing the quality of citizen science data collection while engaging young students in herpetological research. 
 
+<p align="center">
+  <img src="./project_landing_page/FloridaAnoleSpeciesLandscape.png"/>
+</p>
+
 ## Method 
 The improved classification system proposes a pipeline that consists of 
 1) Detecting lizard species using fine-tuned lizard detection model ( :point_left: Current Progress)
