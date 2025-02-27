@@ -16,8 +16,8 @@ Utility scripts to load data. Includes script to download the images from the ex
 
 #configs
 taxa = [116461, 36514, 36488, 36391, 36455]
-folder_path = 'C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset'
-file_path = 'C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/36488&36391&36455.csv' #modify with file name
+folder_path = 'C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/dataset'
+file_path = 'C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/dataset/36488&36391&36455.csv' #modify with file name
 
 def download_images(filepath):
     df = pd.read_csv(filepath)
