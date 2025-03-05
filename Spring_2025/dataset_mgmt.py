@@ -2,7 +2,7 @@ import os
 import shutil
 from pathlib import Path
 
-def copy_image_and_text_files(src_folder, dest_folder, n=200):
+def move_image_and_text_files(src_folder, dest_folder, n=1600):
     # Ensure source and destination folders exist
     src_img_path = Path(str(src_folder + "/images"))
     src_txt_path = Path(str(src_folder + "/labels"))
@@ -29,18 +29,33 @@ def copy_image_and_text_files(src_folder, dest_folder, n=200):
 
         #Move image
         shutil.move(str(image), str(dest_img_path / image.name))
-        print(f"Copied image: {image} -> {dest_img_path}")
+        # print(f"Copied image: {image} -> {dest_img_path}")
 
         #Move corresponding label text file
         txt_file_name = img_name + ".txt"
         corresponding_txt_file_path = str(src_txt_path/txt_file_name)
         shutil.move(str(corresponding_txt_file_path), str(dest_txt_path/txt_file_name))
-        print(f"Copied txt file: {corresponding_txt_file_path} -> {dest_txt_path}")
+        # print(f"Copied txt file: {corresponding_txt_file_path} -> {dest_txt_path}")
 
 
-    print(f"Successfully copied {len(images[-n:])} files.")
+    print(f"Successfully copied {len(images[-n:])} files into {dest_folder}")
 
 # Example usage
-source_folder = "../dataset/YOLO_training/YOLO_training_test/train"
-destination_folder = "../dataset/YOLO_training/YOLO_training_test/test"
-copy_image_and_text_files(source_folder, destination_folder)
+# 
+# destination_folder = "../dataset/YOLO_training/lizard_10000/train"
+# move_image_and_text_files(source_folder, destination_folder)
+
+source_folder = "../dataset/YOLO_training/knightanole_2000/train"
+destination_parent_folder = "../dataset/YOLO_training/lizard_10000/"
+dest_folder_name = ['train', 'valid', 'test']
+
+for folder_name in dest_folder_name:
+
+    destination_folder_path = destination_parent_folder + folder_name
+
+    if (folder_name == 'train'):
+        count = 1600
+    else:
+        count = 200
+
+    move_image_and_text_files(source_folder, destination_folder_path, count)
