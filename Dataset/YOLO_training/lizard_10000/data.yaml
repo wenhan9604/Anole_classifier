@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['lizard']
+
+roboflow:
+  workspace: lizard-class
+  project: lizard-class
+  version: 5
+  license: Private
+  url: https://app.roboflow.com/lizard-class/lizard-class/5
