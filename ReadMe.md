@@ -8,23 +8,28 @@ The Florida Anole Species Classification project aims to develop a robust machin
 
 ## Method 
 The improved classification system proposes a pipeline that consists of 
-1) Detecting lizard species using fine-tuned lizard detection model ( :point_left: Current Progress)
+1) Detecting lizard species using fine-tuned lizard detection model :thumbsup:
 2) Upscaling and enhancing cropped image 
-3) Classifying lizard subspecies using Classification model trained with cropped images.
+3) Classifying lizard subspecies using Classification model trained with cropped images. ( :point_left: In Progress)
 
 ## Progress
 
 ### 1) Lizard Detection Model
-- Fine-tuned multiple YOLO models using Ultralytics API
-- Evaluated models' performance results
-- Chose YOLOv8n model as choice of object detection model for lizards
+- Goal: Fine-tune a object detection model to detect lizards
+- Output: Bounding box indicating location of lizard in image
+- What has been done:
+	- Fine-tuned multiple YOLO models using Ultralytics API
+	- Evaluated models' performance results using relevant metrics (F1-score, Precision, Recall)
+	- Chose YOLOv8n model based on reasonings discussed in the next section
 
 #### Model Performance 
+<p align="center">
+  <img src="./project_landing_page/ODmodelPerformance.png"/>
+</p>
+
 - **Recall** is the most important metrics because achieving high recall indicates less missed detections. This is vital because in the entire 3-stage pipeline, the object detection serves as the first model and it is responsible for detecting the target. Missing the target would mean no image gets passed downstream, resulting in no classification performed at all and affecting the entire pipeline’s result. YOLOv8n scored the best in Recall.
-- The next most important metric is **mean Average Precision (mAP) at high Intersection over Union (IoU)**. In the first stage of the pipeline, we will filter predictions using a high IoU value to create a better localized bounding box around the lizard. This helps to preserve and capture the key features of the lizard in the cropped image, before being passed downstream to the classification model. Thus, we value mAP @ high IoU of 75 and 50-95. YOLOv8n achieved the 2nd highest (only differing from the top scorer by 0.007) and highest mAP for IoU of 75 and 50-95 respectively.
+- **mean Average Precision (mAP) at high Intersection over Union (IoU)** is the next most important metric. In the first stage of the pipeline, we will filter predictions using a high IoU value to create a better localized bounding box around the lizard. This helps to preserve and capture the key features of the lizard in the cropped image, before being passed downstream to the classification model. Thus, we value mAP @ high IoU of 75 and 50-95. YOLOv8n achieved the 2nd highest (only differing from the top scorer by 0.007) and highest mAP for IoU of 75 and 50-95 respectively.
 - **Considering the high Recall, F1-score and mAP results, YOLOv8n will be chosen as the lizard detection model.**
-
-
 
 
 ## Installation:
