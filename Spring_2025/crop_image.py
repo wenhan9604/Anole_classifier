@@ -1,5 +1,6 @@
 import cv2 
 import numpy as np
+from pathlib import Path
 
 def crop_image(img_path, coord):
     "Will crop image based on bounding box coordinate. Coordinate will be given in YOLO format (x_center, y_center, width, height)"
@@ -52,7 +53,7 @@ def get_coord(labels_file_path):
 
     return (x_center, y_center, width, height)
 
-def crop_resize_img_folder(src_folder_dir, dest_folder_dir, resize_value):
+def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value):
     """
     Will crop and resize images from source folder and store in destination folder
 
@@ -60,15 +61,16 @@ def crop_resize_img_folder(src_folder_dir, dest_folder_dir, resize_value):
         resize_value(int, int) : The size of the final resized images (width, height)
     """
 
-    if not src_folder_dir.is_dir():
-        print(f"Source folder '{src_folder_dir}' does not exist.")
+    src_img_folder = Path(str(src_folder_path + "/images"))
+    src_txt_folder = Path(str(src_folder_path + "/labels"))
+    dest_folder = Path(str(dest_folder_path))
+
+    if not src_img_folder.is_dir():
+        print(f"Source folder '{src_folder_path}' does not exist.")
         return
 
-    src_img_folder = src_folder_dir + "/images"
-    src_txt_folder = src_folder_dir + "/labels"
-
     # Create destination folder if it doesn't exist
-    dest_folder_dir.mkdir(parents=True, exist_ok=True)
+    dest_folder.mkdir(parents=True, exist_ok=True)
 
     # Get all files sorted by modification time (most recent first)
     images = sorted(src_img_folder.glob('*'), key=lambda img_file: img_file.name)
@@ -81,16 +83,16 @@ def crop_resize_img_folder(src_folder_dir, dest_folder_dir, resize_value):
 
         img_name = image.stem
 
-        img_path = image
-        labels_file_path = src_txt_folder + img_name + ".txt"
+        img_text_path = img_name + ".txt"
+        labels_file_path = str(src_txt_folder / img_text_path)
 
         #Core functions: Crop and Resize images
         coord = get_coord(labels_file_path)
-        cropped_image = crop_image(img_path, coord)
+        cropped_image = crop_image(image, coord)
         resized_img = cv2.resize(cropped_image, resize_value)
 
-        dest_img_name = img_name + "_cropped"
-        dest_path = dest_folder_dir + dest_img_name + ".jpg"
+        dest_img_path = img_name + "_cropped.jpg"
+        dest_path = str(dest_folder / dest_img_path)
 
         cv2.imwrite(dest_path, resized_img)
 
@@ -119,12 +121,11 @@ def unit_test_save_image():
 
     print("End of test")
 
+src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
+dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/barkanole_2000_cropped"
+resize_value = (320, 320)
 
-# src_folder = "../Dataset/YOLO_training/knightanole_2000"
-# dest_folder = "../Dataset/YOLO_training/knightanole_2000_cropped"
-# resize_value = (320, 320)
-
-# crop_resize_img_folder(src_folder, dest_folder, resize_value)
+crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value)
 
 # unit_test_save_image()
 
