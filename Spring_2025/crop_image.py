@@ -35,23 +35,28 @@ def get_coord(labels_file_path):
     #Get coordinate from YOLOv8 txt format. YOLOv8 txt format are in normalized coordinate (0 to 1). 
     #Images are all resized to 640x640 from roboflow output.
     #Returns pixel coordinate
+
+    instances_coord = []
     
     with open(labels_file_path, "r") as file:
-        data = file.read().strip().split()  # Read, strip, and split by spaces
+        for line in file:
+            data = line.strip().split()  # Read, strip, and split by spaces
 
-    #Normalized coord (0 to 1)
-    class_ID, x_center, y_center, width, height = map(float, data)
+            #Normalized coord (0 to 1)
+            class_ID, x_center, y_center, width, height = map(float, data)
 
-    #Convert to pixel coordinate
-    x_center = np.floor(x_center * 640)
-    y_center = np.floor(y_center * 640)
-    width = np.floor(width * 640)
-    height = np.floor(height * 640)
+            #Convert to pixel coordinate
+            x_center = np.floor(x_center * 640)
+            y_center = np.floor(y_center * 640)
+            width = np.floor(width * 640)
+            height = np.floor(height * 640)
+
+            instances_coord.append((x_center, y_center, width, height))
 
     # Print values to verify
     # print(x_center, y_center, width, height)
 
-    return (x_center, y_center, width, height)
+    return instances_coord
 
 def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value):
     """
@@ -87,17 +92,22 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value):
         labels_file_path = str(src_txt_folder / img_text_path)
 
         #Core functions: Crop and Resize images
-        coord = get_coord(labels_file_path)
-        cropped_image = crop_image(image, coord)
-        resized_img = cv2.resize(cropped_image, resize_value)
+        instances_coord = get_coord(labels_file_path)
 
-        dest_img_path = img_name + "_cropped.jpg"
-        dest_path = str(dest_folder / dest_img_path)
+        instance_count = 0
+        for coord in instances_coord:
+            
+            cropped_image = crop_image(image, coord)
+            resized_img = cv2.resize(cropped_image, resize_value)
 
-        cv2.imwrite(dest_path, resized_img)
+            dest_img_path = img_name + "_cropped_" + str(instance_count) + ".jpg"
+            dest_path = str(dest_folder / dest_img_path)
 
-        count += 1
-        print(f"Image count: {count}")
+            cv2.imwrite(dest_path, resized_img)
+
+            count += 1
+            instance_count += 1
+            print(f"Image count: {count}")
 
     print("Images Successfully cropped, resized and saved")
 
@@ -121,6 +131,35 @@ def unit_test_save_image():
 
     print("End of test")
 
+def unit_test_save_image_instances():
+
+    img_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\original\barkanole_2000\train\images\36455_101026830_jpg.rf.e839b9ff35e4f042bccaf77bc1381ff2.jpg"
+
+    labels_file_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\original\barkanole_2000\train\labels\36455_101026830_jpg.rf.e839b9ff35e4f042bccaf77bc1381ff2.txt"
+
+    resize_value = (320, 320)
+
+    #Core functions: Crop and Resize images
+    instances_coord = get_coord(labels_file_path)
+
+    dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training"
+
+    count = 0
+    for coord in instances_coord:
+        
+        cropped_image = crop_image(img_path, coord)
+        resized_img = cv2.resize(cropped_image, resize_value)
+
+        dest_img_path = "test_cropped_" + str(count) + ".jpg"
+        dest_path = dest_folder_path + "/" + dest_img_path
+
+        cv2.imwrite(dest_path, resized_img)
+
+        count += 1
+        print(f"Image count: {count}")
+
+    print("End of test")
+
 src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
 dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/barkanole_2000_cropped"
 resize_value = (320, 320)
@@ -129,7 +168,7 @@ crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value)
 
 # unit_test_save_image()
 
-
+# unit_test_save_image_instances()
 
 
 
