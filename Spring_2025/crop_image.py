@@ -99,11 +99,34 @@ def crop_resize_img_folder(src_folder_dir, dest_folder_dir, resize_value):
 
     print("Images Successfully cropped, resized and saved")
 
-src_folder = "../Dataset/YOLO_training/knightanole_2000"
-dest_folder = "../Dataset/YOLO_training/knightanole_2000_cropped"
-resize_value = (320, 320)
+def unit_test_save_image():
 
-crop_resize_img_folder(src_folder, dest_folder, resize_value)
+    img_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\barkanole_2000\barkanole_2000\train\images\36455_116141_jpg.rf.2ca8cfe1b397edda02a70e1a51d6ae98.jpg"
+
+    labels_file_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\barkanole_2000\barkanole_2000\train\labels\36455_116141_jpg.rf.2ca8cfe1b397edda02a70e1a51d6ae98.txt"
+
+    resize_value = (320, 320)
+
+    #Core functions: Crop and Resize images
+    coord = get_coord(labels_file_path)
+    cropped_image = crop_image(img_path, coord)
+    resized_img = cv2.resize(cropped_image, resize_value)
+
+    dest_img_name = "test_cropped"
+    dest_path = dest_img_name + ".jpg"
+
+    cv2.imwrite(dest_path, resized_img)
+
+    print("End of test")
+
+
+# src_folder = "../Dataset/YOLO_training/knightanole_2000"
+# dest_folder = "../Dataset/YOLO_training/knightanole_2000_cropped"
+# resize_value = (320, 320)
+
+# crop_resize_img_folder(src_folder, dest_folder, resize_value)
+
+# unit_test_save_image()
 
 
 
