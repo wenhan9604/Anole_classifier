@@ -23,3 +23,4 @@ dependencies:
     - datasets 
     - transformers 
     - accelerate
+    - evaluate
