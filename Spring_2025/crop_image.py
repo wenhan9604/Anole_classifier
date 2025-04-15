@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 import math
+import math
 
 def crop_image(img_path, coord):
     "Will crop image based on bounding box coordinate. Coordinate will be given in YOLO format (x_center, y_center, width, height)"
@@ -215,28 +216,6 @@ def unit_test_save_image_instances():
 # unit_test_save_image()
 
 # unit_test_save_image_instances()
-
-# src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
-# dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image"
-# resize = (384, 384)
-
-# crop_resize_img_folder(src_folder_path, dest_folder_path, resize, coord_type="xyxy")
-
-# src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
-# dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image"
-# resize = (384, 384)
-
-# dict_anole = {0: "bark_anole",
-#               1: "brown_anole",
-#               2: "crested_anole",
-#               3: "green_anole",
-#               4: "knight_anole"}
-
-# for key, value in dict_anole.items():
-#     source_target = src_folder_path + "/" + value
-#     dest_target = str(dest_folder_path + "/" + value)
-
-# crop_resize_img_folder(source_target, dest_target, resize, coord_type="xyxy")
 
 
 
