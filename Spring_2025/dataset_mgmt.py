@@ -199,8 +199,8 @@ def move_image_files_and_test_using_ref(src_folder, dest_folder, ref_folder):
 
 
 #For moving into destination folder's sub folder 
-source_parent_folder = "../dataset/YOLO_training/original_train_val_test_split/knightanole_2000/"
-destination_parent_folder = "../dataset/YOLO_training/lizard_10000_v2/"
+source_parent_folder = "../dataset/YOLO_training/original_train_val_test_split_labelled/greenanole_2000/"
+destination_parent_folder = "../dataset/YOLO_training/florida_five_anole_10000/"
 sub_folders = ['train', 'val', 'test']
 
 for folder_name in sub_folders:
