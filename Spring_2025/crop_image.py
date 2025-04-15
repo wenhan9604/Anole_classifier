@@ -1,6 +1,7 @@
 import cv2 
 import numpy as np
 from pathlib import Path
+import math
 
 def crop_image(img_path, coord):
     "Will crop image based on bounding box coordinate. Coordinate will be given in YOLO format (x_center, y_center, width, height)"
@@ -31,7 +32,38 @@ def crop_image(img_path, coord):
 
     return cropped_segment
 
-def get_coord(labels_file_path):
+def crop_image_tl_br(img_path, coord):
+    """
+    coord is a tuple that consist of (top_left_x, top_left_y, bottom_right_x, bottom_right_y)
+    """
+
+    input = cv2.imread(img_path)
+
+    print("coord")
+    print(coord)
+
+    tl_x, tl_y, br_x, br_y = coord
+
+    tl_x = np.uint16(math.ceil(tl_x))
+    tl_y = np.uint16(math.ceil(tl_y))
+    br_x = np.uint16(br_x)
+    br_y = np.uint16(br_y)
+
+    print("tl_x")
+    print(tl_x)
+
+    cropped_segment = input[tl_y:br_y, tl_x:br_x]
+
+    # print("Cropped shape: ", cropped_segment.shape)
+
+    # cv2.imshow('cropped', cropped_segment) 
+    # cv2.waitKey(0) 
+    # cv2.destroyAllWindows() 
+
+    return cropped_segment
+
+
+def get_coord(labels_file_path, is_coord_normalized = True):
     #Get coordinate from YOLOv8 txt format. YOLOv8 txt format are in normalized coordinate (0 to 1). 
     #Images are all resized to 640x640 from roboflow output.
     #Returns pixel coordinate
@@ -45,11 +77,13 @@ def get_coord(labels_file_path):
             #Normalized coord (0 to 1)
             class_ID, x_center, y_center, width, height = map(float, data)
 
-            #Convert to pixel coordinate
-            x_center = np.floor(x_center * 640)
-            y_center = np.floor(y_center * 640)
-            width = np.floor(width * 640)
-            height = np.floor(height * 640)
+            if (is_coord_normalized):
+
+                #Convert to pixel coordinate
+                x_center = np.floor(x_center * 640)
+                y_center = np.floor(y_center * 640)
+                width = np.floor(width * 640)
+                height = np.floor(height * 640)
 
             instances_coord.append((x_center, y_center, width, height))
 
@@ -58,12 +92,17 @@ def get_coord(labels_file_path):
 
     return instances_coord
 
-def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value):
+def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywh_center"):
     """
     Will crop and resize images from source folder and store in destination folder
 
     Args:
         resize_value(int, int) : The size of the final resized images (width, height)
+        coord_type : 
+            "xyxy" represents topleft and bot right coord. 
+            "xywh_center" represents xy coordinate of bounding box's center 
+            "xywhn_center" represents xy coordinate of bounding box's center, normalized
+
     """
 
     src_img_folder = Path(str(src_folder_path + "/images"))
@@ -92,12 +131,19 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value):
         labels_file_path = str(src_txt_folder / img_text_path)
 
         #Core functions: Crop and Resize images
-        instances_coord = get_coord(labels_file_path)
+        if(coord_type == "xywhn_center"):
+            instances_coord = get_coord(labels_file_path, True)
+        else:
+            instances_coord = get_coord(labels_file_path, False)
 
         instance_count = 0
         for coord in instances_coord:
             
-            cropped_image = crop_image(image, coord)
+            if(coord_type == "xyxy"):
+                cropped_image = crop_image_tl_br(image, coord)
+            elif (coord_type == "xywh_center"):
+                cropped_image = crop_image(image, coord)
+
             resized_img = cv2.resize(cropped_image, resize_value)
 
             dest_img_path = img_name + "_cropped_" + str(instance_count) + ".jpg"
@@ -160,15 +206,37 @@ def unit_test_save_image_instances():
 
     print("End of test")
 
-src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
-dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/barkanole_2000_cropped"
-resize_value = (320, 320)
+# src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
+# dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/barkanole_2000_cropped"
+# resize_value = (320, 320)
 
-crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value)
+# crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value)
 
 # unit_test_save_image()
 
 # unit_test_save_image_instances()
+
+# src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
+# dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image"
+# resize = (384, 384)
+
+# crop_resize_img_folder(src_folder_path, dest_folder_path, resize, coord_type="xyxy")
+
+# src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
+# dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image"
+# resize = (384, 384)
+
+# dict_anole = {0: "bark_anole",
+#               1: "brown_anole",
+#               2: "crested_anole",
+#               3: "green_anole",
+#               4: "knight_anole"}
+
+# for key, value in dict_anole.items():
+#     source_target = src_folder_path + "/" + value
+#     dest_target = str(dest_folder_path + "/" + value)
+
+# crop_resize_img_folder(source_target, dest_target, resize, coord_type="xyxy")
 
 
 
