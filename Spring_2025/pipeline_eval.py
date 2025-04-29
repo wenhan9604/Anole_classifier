@@ -6,24 +6,25 @@ import ultralytics
 from pathlib import Path
 from crop_image import crop_resize_img_folder
 
-ODmodel = YOLO("./ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt")
+# ODmodel = YOLO("./ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt")
 #ODmodel = YOLO("./runs/detect/train_yolov8s/weights/best.pt")
 
-dict_anole = {0: "bark_anole",
-              1: "brown_anole",
-              2: "crested_anole",
-              3: "green_anole",
-              4: "knight_anole"}
+def OD_inference(yolo_model_file_path,
+                test_folder_path = "../Dataset/YOLO_training/florida_five_anole_10000/test",
+                dest_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection",
+                log_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection_log"):
 
-def OD_inference():
+    ODmodel = YOLO(yolo_model_file_path)
 
-    test_folder_path = "../Dataset/YOLO_training/florida_five_anole_10000/test"
-    dest_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
-    log_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection_log"
+    dict_anole = {0: "bark_anole",
+                1: "brown_anole",
+                2: "crested_anole",
+                3: "green_anole",
+                4: "knight_anole"}
 
     missed_detection = []
 
-    #Get images and text folder 
+    #Setup: Create destination images and text folder 
     test_img_folder = Path(str(test_folder_path + "/images"))
     test_txt_folder = Path(str(test_folder_path + "/labels"))
 
@@ -35,14 +36,23 @@ def OD_inference():
         dest_img_folder.mkdir(parents=True, exist_ok=True)
         dest_txt_folder.mkdir(parents=True, exist_ok=True)
 
+    # Iterate through each image: 
+    # 1. Get ground truth label (lizard class) of image
+    # 2. Determine desination folder (To sort images and text into each destination folder later)
+    # 3. Run prediction on image 
+    #   3.1 Save image with bounding box
+    #   3.2 Get predicted bounding box coordinate
+    #   3.3 Save predicted text file using ground truth label (lizard class) & predicted coordinate
+
     images = sorted(test_img_folder.glob('*'), key=lambda img_file: img_file.name)
     images = [img_file for img_file in images if img_file.is_file()]
 
+    
     for image in images:
 
         img_name = image.stem
 
-        # 1.Get ground truth label of image
+        # 1.Get ground truth label (lizard class) of image
         label_file_name = img_name + ".txt"
         label_file_path = str(test_txt_folder / label_file_name)
 
@@ -52,7 +62,7 @@ def OD_inference():
 
                 class_ID, x_center, y_center, width, height = map(float, data)
 
-        # Determine destination folder 
+        # 2. Determine destination folder 
 
         class_label = dict_anole[class_ID]
 
@@ -61,20 +71,16 @@ def OD_inference():
         dest_img_folder = Path(str(dest_folder_path + "/" + class_label + "/images"))
         dest_txt_folder = Path(str(dest_folder_path + "/" + class_label + "/labels"))
 
-        #Get inference on image 
+        # 3.Get inference on image 
         img_file_name = img_name + ".jpg"
         img_file_path = str(test_img_folder / img_file_name)
 
         results = ODmodel(img_file_path)
-
-        # 1.Save image with bounding box 
-        dest_img_file_path = str(dest_img_folder / img_file_name)
         result = results[0]
-        result.save(filename=dest_img_file_path)
 
-        # 2.Get new bounding box coordinate
         xyxy = result.boxes.xyxy
         
+        # Check for missed detections
         if(xyxy.nelement() == 0):
             # log_file_path = Path(str(log_folder_path + "/log_missed_detection.txt"))
             # try:
@@ -84,13 +90,16 @@ def OD_inference():
             #     print(f"Error: {log_file_path} unable to be appended")
                     
             missed_detection.append(img_file_name)
-            
             continue
-            
-        
+
+        # 3.1 Save image with bounding box 
+        dest_img_file_path = str(dest_img_folder / img_file_name)
+        result.save(filename=dest_img_file_path)
+
+        # 3.2 Get predicted bounding box coordinate
         coord = tuple(xyxy[0].tolist())
         
-        # 4.Write label text file using ground truth ID & coordinate
+        # 3.3 Save predicted text file using ground truth label (lizard class) & predicted coordinate
 
         dest_label_file_name = img_name + ".txt"
         dest_label_file_path = str(dest_txt_folder / dest_label_file_name)
@@ -101,11 +110,12 @@ def OD_inference():
         except FileExistsError:
             print(f"Error: {dest_label_file_path} already exists!")
 
+
     print(f"Missed Detections: {missed_detection.count}\n")
 
     for item in missed_detection:
         print(f"{item}\n")
-    
+        
 
 def crop_image():
     src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
