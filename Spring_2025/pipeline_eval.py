@@ -26,6 +26,10 @@ def OD_inference(yolo_model_file_path,
                 3: "green_anole",
                 4: "knight_anole"}
 
+    #Create log folder if it doesnt exist
+    log_folder_path.mkdir(parents=True, exist_ok=True)
+    log_file_path = Path(log_folder_path) / "log_missed_detection.txt" 
+
     missed_detection_count = {"bark_anole": 0,
                 "brown_anole" : 0,
                 "crested_anole" : 0,
@@ -89,9 +93,8 @@ def OD_inference(yolo_model_file_path,
         
         # Check for missed detections
         if(xyxy.nelement() == 0):
-            log_file_path = Path(log_folder_path) / "log_missed_detection.txt" 
             try:
-                with open(log_file_path, "x") as file:
+                with open(log_file_path, "w") as file:
                     file.write(f"{class_label} {img_file_name} \n")
             except FileExistsError:
                 print(f"Error: {log_file_path} unable to be appended")
@@ -126,7 +129,7 @@ def OD_inference(yolo_model_file_path,
 
     #Save missed detections into log file
     try:
-        with open(log_file_path, "x") as file:
+        with open(log_file_path, "a") as file:
             file.write("\nSummary of missed detections:\n")
 
             for key, value in missed_detection_count.items():
@@ -152,6 +155,3 @@ def crop_image():
         dest_target = str(dest_folder_path + "/" + value)
 
     crop_resize_img_folder(source_target, dest_target, resize, coord_type="xyxy")
-
-
-OD_inference()
