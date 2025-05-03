@@ -5,18 +5,14 @@ from IPython import display
 import ultralytics
 from pathlib import Path
 from crop_image import crop_resize_img_folder
+from datetime import datetime
 
 # ODmodel = YOLO("./ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt")
 #ODmodel = YOLO("./runs/detect/train_yolov8s/weights/best.pt")
 
 def OD_inference(yolo_model_file_path,
                 test_folder_path = "../Dataset/YOLO_training/florida_five_anole_10000/test",
-                dest_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection",
-                log_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection_log"):
-
-    test_folder_path = Path(test_folder_path)
-    dest_folder_path = Path(dest_folder_path)
-    log_folder_path = Path(log_folder_path)
+                dest_folder_path = "../Dataset/YOLO_training/inference"):
 
     ODmodel = YOLO(yolo_model_file_path)
 
@@ -25,20 +21,26 @@ def OD_inference(yolo_model_file_path,
                 2: "crested_anole",
                 3: "green_anole",
                 4: "knight_anole"}
-
-    #Create log folder if it doesnt exist
-    log_folder_path.mkdir(parents=True, exist_ok=True)
-    log_file_path = Path(log_folder_path) / "log_missed_detection.txt" 
-
+    
     missed_detection_count = {"bark_anole": 0,
                 "brown_anole" : 0,
                 "crested_anole" : 0,
                 "green_anole" : 0,
                 "knight_anole" : 0}
 
+    #Handling all folder directories
+
     #Setup: Create destination images and text folder 
+    test_folder_path = Path(test_folder_path)
     test_img_folder = test_folder_path / "images"
     test_txt_folder = test_folder_path / "labels"
+
+    #Create a unique output directory based on the time of each run
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest_root_dir = Path(dest_folder_path) / f"run_{run_id}"
+
+    #Store images and label in dest folders
+    dest_folder_path = dest_root_dir / "lizard_detection"
 
     for key, value in dict_anole.items():
         dest_img_folder = dest_folder_path / value / "images"
@@ -47,6 +49,11 @@ def OD_inference(yolo_model_file_path,
         # Create destination folder if it doesn't exist
         dest_img_folder.mkdir(parents=True, exist_ok=True)
         dest_txt_folder.mkdir(parents=True, exist_ok=True)
+
+    #Create log folder
+    log_folder_path = dest_root_dir / "lizard_detection_log"
+    log_folder_path.mkdir(parents=True, exist_ok=True)
+    log_file_path = Path(log_folder_path) / "log_missed_detection.txt" 
 
     # Iterate through each image: 
     # 1. Get ground truth label (lizard class) of image
@@ -140,17 +147,16 @@ def OD_inference(yolo_model_file_path,
     except FileExistsError:
         print(f"Error: {log_file_path} unable to be appended")
 
-def crop_image():
+def crop_image_individual_anole(
+        src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection",
+        dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image",
+        resize = (384, 384)):
 
     dict_anole = {0: "bark_anole",
                 1: "brown_anole",
                 2: "crested_anole",
                 3: "green_anole",
                 4: "knight_anole"}
-
-    src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection"
-    dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image"
-    resize = (384, 384)
 
     for key, value in dict_anole.items():
         source_target = src_folder_path + "/" + value
