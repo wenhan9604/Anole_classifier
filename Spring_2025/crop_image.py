@@ -106,9 +106,9 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
 
     """
 
-    src_img_folder = Path(str(src_folder_path + "/images"))
-    src_txt_folder = Path(str(src_folder_path + "/labels"))
-    dest_folder = Path(str(dest_folder_path))
+    src_img_folder = Path(src_folder_path + "/images")
+    src_txt_folder = Path(src_folder_path + "/labels")
+    dest_folder = Path(dest_folder_path)
 
     if not src_img_folder.is_dir():
         print(f"Source folder '{src_folder_path}' does not exist.")
