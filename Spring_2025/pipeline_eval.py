@@ -150,7 +150,15 @@ def OD_inference(yolo_model_file_path,
 def crop_image_individual_anole(
         src_folder_path = "../Dataset/YOLO_training/inference/run1/lizard_detection",
         dest_folder_path = "../Dataset/YOLO_training/inference/run1/cropped_image",
-        resize = (384, 384)):
+        resize = (384, 384),
+        coord_type="xyxy"):
+    """
+    Will crop each anole's folder within the source folder path. 
+    Arg:
+        src_folder_path: Must contain each anole folder
+        dest_folder_path: Cropped anole images stored in each folder 
+    """
+
 
     dict_anole = {0: "bark_anole",
                 1: "brown_anole",
@@ -162,4 +170,6 @@ def crop_image_individual_anole(
         source_target = src_folder_path + "/" + value
         dest_target = str(dest_folder_path + "/" + value)
 
-    crop_resize_img_folder(source_target, dest_target, resize, coord_type="xyxy")
+        print(f"Cropping Source: {source_target}. Saving to {dest_target}\n")
+        crop_resize_img_folder(source_target, dest_target, resize, coord_type)
+

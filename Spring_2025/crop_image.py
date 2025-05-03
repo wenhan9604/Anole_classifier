@@ -40,8 +40,8 @@ def crop_image_tl_br(img_path, coord):
 
     input = cv2.imread(img_path)
 
-    print("coord")
-    print(coord)
+    # print("coord")
+    # print(coord)
 
     tl_x, tl_y, br_x, br_y = coord
 
@@ -50,8 +50,8 @@ def crop_image_tl_br(img_path, coord):
     br_x = np.uint16(br_x)
     br_y = np.uint16(br_y)
 
-    print("tl_x")
-    print(tl_x)
+    # print("tl_x")
+    # print(tl_x)
 
     cropped_segment = input[tl_y:br_y, tl_x:br_x]
 
@@ -155,9 +155,9 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
 
             count += 1
             instance_count += 1
-            print(f"Image count: {count}")
 
-    print("Images Successfully cropped, resized and saved")
+    print(f"Cropped image count: {count}")
+    print(f"Images successfully cropped, resized and saved to {dest_folder}")
 
 def unit_test_save_image():
 
