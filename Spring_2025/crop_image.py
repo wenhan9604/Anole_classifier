@@ -98,6 +98,7 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
     Will crop and resize images from source folder and store in destination folder
 
     Args:
+        src_folder_path: Source folder must contain images and labels sub folder
         resize_value(int, int) : The size of the final resized images (width, height)
         coord_type : 
             "xyxy" represents topleft and bot right coord. 
