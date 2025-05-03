@@ -72,6 +72,8 @@ def OD_inference(yolo_model_file_path,
 
                 class_ID, x_center, y_center, width, height = map(float, data)
 
+                class_ID = int(class_ID)
+
         # 2. Determine destination folder 
 
         class_label = dict_anole[class_ID]
@@ -94,7 +96,7 @@ def OD_inference(yolo_model_file_path,
         # Check for missed detections
         if(xyxy.nelement() == 0):
             try:
-                with open(log_file_path, "w") as file:
+                with open(log_file_path, "a") as file:
                     file.write(f"{class_label} {img_file_name} \n")
             except FileExistsError:
                 print(f"Error: {log_file_path} unable to be appended")
