@@ -130,7 +130,7 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
         img_name = image.stem
 
         img_text_path = img_name + ".txt"
-        labels_file_path = str(src_txt_folder / img_text_path)
+        labels_file_path = src_txt_folder / img_text_path
 
         #Core functions: Crop and Resize images
         if(coord_type == "xywhn_center"):
@@ -149,7 +149,7 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
             resized_img = cv2.resize(cropped_image, resize_value)
 
             dest_img_path = img_name + "_cropped_" + str(instance_count) + ".jpg"
-            dest_path = str(dest_folder / dest_img_path)
+            dest_path = dest_folder / dest_img_path
 
             cv2.imwrite(dest_path, resized_img)
 
