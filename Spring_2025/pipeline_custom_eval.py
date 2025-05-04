@@ -21,7 +21,7 @@ label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
 IOU_THRESHOLD = 0.5
-CONF_THRESH = 0.5
+CONF_THRESH = 0
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
 #Create a unique output directory based on the time of each run
@@ -144,4 +144,10 @@ print(f"Saved evaluation results to {results_path}")
 
 # --- Compute Precision, Recall, F1 ---
 print("\nClassification Report (IoU ≥ 0.5 matched):")
-print(classification_report(y_true_all, y_pred_all, labels=list(range(NUM_CLASSES)) + [MISSED_CLASS_ID], digits=4))
+print(classification_report(
+    y_true_all,
+    y_pred_all,
+    labels=list(range(NUM_CLASSES)),  # exclude class 6
+    target_names=[f"Class {i}" for i in range(NUM_CLASSES)],
+    zero_division=0
+))
