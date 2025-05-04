@@ -4,6 +4,9 @@ from PIL import Image
 from ultralytics import YOLO
 from transformers import AutoImageProcessor, SwinForImageClassification
 from sklearn.metrics import classification_report
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
 
 # --- Load models ---
 yolo_model = YOLO("./runs/detect/train_yolov8n_v2/weights/best.pt")
@@ -12,6 +15,7 @@ processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-fi
 swin_model.eval()
 
 # --- Config ---
+dest_folder_path = "../Dataset/yolo_training/inference"
 image_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/images"
 label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
@@ -19,6 +23,12 @@ NUM_CLASSES = 5
 IOU_THRESHOLD = 0.5
 CONF_THRESH = 0.5
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
+
+#Create a unique output directory based on the time of each run
+run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+dest_root_dir = Path(dest_folder_path) / f"run_{run_id}" 
+dest_root_dir.mkdir(parents=True, exist_ok=True)
+results_path = dest_root_dir / "eval_results.csv"
 
 # --- Helper: Convert YOLO to [x1, y1, x2, y2] ---
 def yolo_to_xyxy(yolo_box, img_w, img_h):
@@ -81,7 +91,7 @@ for img_name in os.listdir(image_folder):
     # --- Confidence filtering ---
     boxes = boxes[boxes[:, 4] >= CONF_THRESH]
     boxes = boxes[boxes[:, 4].argsort(descending=True)]
-    
+
     # --- Limit to top K ---
     if TOP_K is not None:
         boxes = boxes[:TOP_K]
@@ -123,6 +133,14 @@ for img_name in os.listdir(image_folder):
             y_true_all.append(gt_label.item())   # Ground truth exists
             y_pred_all.append(MISSED_CLASS_ID)   # But no prediction found
 
+
+#Save results into .csv file
+df = pd.DataFrame({
+    "y_true": y_true_all,
+    "y_pred": y_pred_all
+})
+df.to_csv(results_path, index=False)
+print(f"Saved evaluation results to {results_path}")
 
 # --- Compute Precision, Recall, F1 ---
 print("\nClassification Report (IoU ≥ 0.5 matched):")
