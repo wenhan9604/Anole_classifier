@@ -17,6 +17,8 @@ label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
 IOU_THRESHOLD = 0.5
+CONF_THRESH = 0.5
+TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
 # --- Helper: Convert YOLO to [x1, y1, x2, y2] ---
 def yolo_to_xyxy(yolo_box, img_w, img_h):
@@ -72,11 +74,21 @@ for img_name in os.listdir(image_folder):
     gt_boxes = torch.tensor(gt_boxes)
     gt_labels = torch.tensor(gt_labels)
 
-    # --- Detection + Classification ---
-    results = yolo_model(image)[0] #Getting 1 result with highest confidence only?
+    # --- Detection + Cropping + Classification ---
+    results = yolo_model(image)[0]
+    boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
+
+    # --- Confidence filtering ---
+    boxes = boxes[boxes[:, 4] >= CONF_THRESH]
+    boxes = boxes[boxes[:, 4].argsort(descending=True)]
+    
+    # --- Limit to top K ---
+    if TOP_K is not None:
+        boxes = boxes[:TOP_K]
+
     pred_boxes, pred_labels = [], []
 
-    for det in results.boxes.data:
+    for det in boxes:
         x1, y1, x2, y2, conf, _ = det.tolist()
         crop = image.crop((x1, y1, x2, y2))
         inputs = processor(images=crop, return_tensors="pt")
