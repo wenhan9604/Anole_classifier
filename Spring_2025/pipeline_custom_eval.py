@@ -14,12 +14,13 @@ swin_model.eval()
 # --- Config ---
 image_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/images"
 label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
+MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
 IOU_THRESHOLD = 0.5
 
 # --- Helper: Convert YOLO to [x1, y1, x2, y2] ---
 def yolo_to_xyxy(yolo_box, img_w, img_h):
-    cls, xc, yc, w, h = yolo_box
+    cls, xc, yc, w, h = yolo_box #yolo_box format (normalized) = (class_id, x_center, y_center, width_boundingbox, height_boundingbox)
     xc, yc, w, h = xc * img_w, yc * img_h, w * img_w, h * img_h
     x1 = xc - w / 2
     y1 = yc - h / 2
@@ -29,11 +30,11 @@ def yolo_to_xyxy(yolo_box, img_w, img_h):
 
 # --- IoU computation ---
 def compute_iou(boxA, boxB):
-    xA = max(boxA[0], boxB[0])
-    yA = max(boxA[1], boxB[1])
-    xB = min(boxA[2], boxB[2])
-    yB = min(boxA[3], boxB[3])
-    interArea = max(0, xB - xA) * max(0, yB - yA)
+    xA = max(boxA[0], boxB[0]) #X coord of top left corner of intersection
+    yA = max(boxA[1], boxB[1]) #Y coord of top left corner of intersection
+    xB = min(boxA[2], boxB[2]) #X coord of bottom right corner of intersection
+    yB = min(boxA[3], boxB[3]) #Y coord of bottom right corner of intersection
+    interArea = max(0, xB - xA) * max(0, yB - yA) #Edge case of 0 intersection area 
     if interArea == 0:
         return 0.0
     boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
@@ -58,6 +59,7 @@ for img_name in os.listdir(image_folder):
     img_w, img_h = image.size
 
     # --- Load GT ---
+    # Loads each instance of target found in image 
     gt_boxes, gt_labels = [], []
     with open(label_path, "r") as f:
         for line in f:
@@ -71,7 +73,7 @@ for img_name in os.listdir(image_folder):
     gt_labels = torch.tensor(gt_labels)
 
     # --- Detection + Classification ---
-    results = yolo_model(image)[0]
+    results = yolo_model(image)[0] #Getting 1 result with highest confidence only?
     pred_boxes, pred_labels = [], []
 
     for det in results.boxes.data:
@@ -102,7 +104,14 @@ for img_name in os.listdir(image_folder):
             y_true_all.append(gt_labels[best_idx].item())
             y_pred_all.append(pl)
             matched_gt.add(best_idx)
+    
+    # --- Handle missed detections (False Negatives) ---
+    for idx, gt_label in enumerate(gt_labels):
+        if idx not in matched_gt:
+            y_true_all.append(gt_label.item())   # Ground truth exists
+            y_pred_all.append(MISSED_CLASS_ID)   # But no prediction found
+
 
 # --- Compute Precision, Recall, F1 ---
 print("\nClassification Report (IoU ≥ 0.5 matched):")
-print(classification_report(y_true_all, y_pred_all, labels=list(range(NUM_CLASSES)), digits=4))
+print(classification_report(y_true_all, y_pred_all, labels=list(range(NUM_CLASSES)) + [MISSED_CLASS_ID], digits=4))
