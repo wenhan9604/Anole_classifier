@@ -110,24 +110,30 @@ for img_name in os.listdir(image_folder):
         pred_labels.append(swin_class)
 
     # --- Match predictions to GT using IoU ---
-    matched_gt = set()
+    # This block contains logic that matches each prediction to each ground truth (gt) label
+    # Matches exactly one gt bounding box to one prediction bounding box
+    # Match condition: Based on IoU between pred and gt bounding box. IoU > threshold
+    # Note: Rmb that these indexes are only for 1 image 
+    matched_gt = set() 
     for pb, pl in zip(pred_boxes, pred_labels):
         best_iou = 0
         best_idx = -1
         for idx, gb in enumerate(gt_boxes):
             if idx in matched_gt:
                 continue
-            iou = compute_iou(pb, gb.tolist())
-            if iou >= IOU_THRESHOLD and iou > best_iou:
+            iou = compute_iou(pb, gb.tolist()) 
+            if iou >= IOU_THRESHOLD and iou > best_iou: 
                 best_iou = iou
                 best_idx = idx
 
+        #Append the GT label and predicted label to lists used later for classification metrics.
         if best_idx >= 0:
             y_true_all.append(gt_labels[best_idx].item())
             y_pred_all.append(pl)
             matched_gt.add(best_idx)
     
     # --- Handle missed detections (False Negatives) ---
+    # For gt labels that are not matched, will be deemed as missed detection
     for idx, gt_label in enumerate(gt_labels):
         if idx not in matched_gt:
             y_true_all.append(gt_label.item())   # Ground truth exists
