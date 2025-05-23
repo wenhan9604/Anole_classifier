@@ -1,26 +1,22 @@
 # Introduction
 
-The Florida Anole Species Classification project aims to develop a robust machine learning pipeline for identifying five common Anolis species from photographs, primarily to support a community science initiative with middle school students in Miami. Building upon an extensive dataset of over 80,000 verified iNaturalist photographs, this project seeks to improve the current classification system, which, despite having access to substantial training data, currently achieves only 35% accuracy (compared to a random baseline of 20%). The development of this classification pipeline will serve as the foundation for a broader educational tool, whether implemented as a mobile application or web platform, that enables students to receive immediate probability-based species identification feedback before submitting their observations to iNaturalist, thereby enhancing the quality of citizen science data collection while engaging young students in herpetological research. 
+The Florida Anole Species Classification project aims to develop a robust machine learning pipeline for identifying five common Anolis species from photographs, primarily to support a community science initiative with middle school students in Miami. Building upon an extensive dataset of over 80,000 verified iNaturalist photographs, the classification pipeline achieved <ins>82.5% accuracy</ins> (compared to a random baseline of 20%). The development of this classification pipeline will serve as the foundation for a broader educational tool, whether implemented as a mobile application or web platform, that enables students to receive immediate probability-based species identification feedback before submitting their observations to iNaturalist, thereby enhancing the quality of citizen science data collection while engaging young students in herpetological research. 
 
 <p align="center">
   <img src="./project_landing_page/FloridaAnoleSpeciesLandscape.png"/>
 </p>
 
 ## Method 
-The improved classification system proposes a pipeline that consists of 
+The classification system proposes a pipeline that consists of 
 1) Detecting lizard species using fine-tuned lizard detection model :thumbsup:
-2) Upscaling and enhancing cropped image 
-3) Classifying lizard subspecies using Classification model trained with cropped images. ( :point_left: In Progress)
+2) Upscaling and enhancing cropped image :thumbsup:
+3) Classifying cropped images using fine-tuned classification model to identify lizard subspecies. :thumbsup:
 
 ## Progress
 
-### 1) Lizard Detection Model
-- Goal: Fine-tune a object detection model to detect lizards
-- Output: Bounding box indicating location of lizard in image
-- What has been done:
-	- Fine-tuned multiple YOLO models using Ultralytics API
-	- Evaluated models' performance results using relevant metrics (F1-score, Precision, Recall)
-	- Chose YOLOv8n model based on reasonings discussed in the next section
+### Overall Results
+
+
 
 #### Model Performance 
 <p align="center">
