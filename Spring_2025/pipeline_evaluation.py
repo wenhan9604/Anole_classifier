@@ -15,7 +15,7 @@ processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-fi
 swin_model.eval()
 
 # --- Config ---
-dest_folder_path = "../Dataset/yolo_training/inference"
+dest_folder_path = "./inference"
 image_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/images"
 label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
