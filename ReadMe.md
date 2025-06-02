@@ -1,8 +1,11 @@
 # Introduction
 
-The Florida Anole Species Classification project aims to develop a robust machine learning pipeline for identifying five common Anolis species from photographs, primarily to support a community science initiative with middle school students in Miami. Building upon an extensive dataset of over 80,000 verified iNaturalist photographs, the classification pipeline achieved <ins>82.5% accuracy</ins> (compared to a random baseline of 20%). 
+The Florida Anole Species Classification project aims to develop a robust machine learning pipeline for fine-grained visual classification (FGVC) of five common Anolis species found in Miami. The pipeline is designed to support a community science initiative involving middle school students, enabling them to receive immediate, probability-based species identification before submitting observations to iNaturalist. This enhances the quality of citizen science data while promoting student engagement in herpetological research.
 
-The development of this classification pipeline will serve as the foundation for a broader educational tool, whether implemented as a mobile application or web platform, that enables students to receive immediate probability-based species identification feedback before submitting their observations to iNaturalist, thereby enhancing the quality of citizen science data collection while engaging young students in herpetological research. 
+FGVC is inherently challenging due to high inter-class similarity and high intra-class variation. For example, Brown and Bark Anoles share similar coloration and patterns, complicating inter-species differentiation. Conversely, Crested Anoles exhibit wide variations in skin color and crest morphology, complicating intra-species classification. Additionally, Anoles often appear camouflaged and occupy a small portion of the image, making their distinguishing features difficult to detect.
+
+While prior FGVC approaches leverage attention mechanisms and feature localization techniques (e.g., Mask-CNN, Recurrent Attention-CNN) as well as modern architectures like Vision Transformers, they often fall short in handling small object detection. To address this, we propose a three-stage pipeline: (1) detect lizards using a fine-tuned object detection model, (2) crop detected regions, and (3) classify subspecies using a fine-tuned Swin Transformer. We curated a dataset of 10,000 images from iNaturalist, filtered for visibility of species-specific features, covering Bark, Brown, Crested, Green, and Knight Anoles. Our pipeline achieved a competitive <ins>top-1 accuracy of 82.7%</ins>.
+
 
 <p align="center">
   <img src="./project_landing_page/FloridaAnoleSpeciesLandscape.png"/>
