@@ -9,15 +9,23 @@ from datetime import datetime
 from pathlib import Path
 
 # --- Load models ---
-yolo_model = YOLO("./runs/detect/train_yolov8n_v2/weights/best.pt")
-swin_model = SwinForImageClassification.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
-processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
+yolo_model = YOLO("Spring_2025/models/train_yolov8n_v2/weights/best.pt")
+swin_model = SwinForImageClassification.from_pretrained(
+    "Spring_2025/models/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/checkpoint-352",
+    local_files_only=True
+)
+
+processor = AutoImageProcessor.from_pretrained(
+    "Spring_2025/models/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/checkpoint-352",
+    local_files_only=True
+)
+
 swin_model.eval()
 
 # --- Config ---
-dest_folder_path = "../Dataset/yolo_training/inference"
-image_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/images"
-label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
+dest_folder_path = "Dataset/YOLO_training/inference"
+image_folder = "Dataset/YOLO_training/florida_five_anole_10000/test/sample"
+label_folder = "Dataset/YOLO_training/florida_five_anole_10000/test/sample_labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
 IOU_THRESHOLD = 0.5
