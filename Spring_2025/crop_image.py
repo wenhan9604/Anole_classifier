@@ -114,6 +114,12 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
     if not src_img_folder.is_dir():
         print(f"Source folder '{src_folder_path}' does not exist.")
         return
+    
+    coord_types_list = ["xyxy", "xywh_center", "xywhn_center"]
+
+    if not coord_type in coord_types_list:
+        print(f"coord_type is not compatible:{coord_type}")
+        return
 
     # Create destination folder if it doesn't exist
     dest_folder.mkdir(parents=True, exist_ok=True)
@@ -140,10 +146,11 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
 
         instance_count = 0
         for coord in instances_coord:
-            
+
             if(coord_type == "xyxy"):
                 cropped_image = crop_image_tl_br(image, coord)
-            elif (coord_type == "xywh_center"):
+
+            elif (coord_type == "xywh_center" or coord_type == "xywhn_center"):
                 cropped_image = crop_image(image, coord)
 
             resized_img = cv2.resize(cropped_image, resize_value)
@@ -218,5 +225,12 @@ def unit_test_save_image_instances():
 
 # unit_test_save_image_instances()
 
+src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/base_data/original_cleaned/florida_10000_cleaned/crop_example"
+
+dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/base_data/original_cleaned/florida_10000_cleaned/dest_crop_example"
+
+resize_value = (300, 300)
+
+crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywhn_center")
 
 
