@@ -1,7 +1,7 @@
 import os
 from collections import Counter
 
-label_folder = "Dataset/YOLO_training/florida_five_anole_10000/train/labels"
+label_folder = "Dataset/YOLO_training/florida_five_anole_10000/test/labels"
 class_counts = Counter()
 
 for filename in os.listdir(label_folder):

@@ -93,14 +93,17 @@ for img_name in os.listdir(image_folder):
     gt_boxes = torch.tensor(gt_boxes)
     gt_labels = torch.tensor(gt_labels)
 
+    
     # --- Detection ---
     results = yolo_model(img_path)[0]
-    if results.boxes is None or len(results.boxes) == 0:
+    pred_boxes = results.boxes.xyxy.cpu().numpy() if results.boxes is not None else []
+
+    if len(pred_boxes) == 0:
         print(f"[FAIL] No detection for {img_name}")
         shutil.copy(img_path, base_output / "detection_incorrect" / img_name)
         fig, ax = plt.subplots()
         ax.imshow(image)
-        ax.set_title(f"No Detection | True: {gt_labels.tolist()}")
+        ax.set_title(f"No Detection | GT: {gt_labels.tolist()}")
         ax.axis("off")
         fig.savefig(base_output / "detection_incorrect_visual" / img_name)
         plt.close(fig)
@@ -114,28 +117,9 @@ for img_name in os.listdir(image_folder):
         })
         continue
 
-    if len(results.boxes) > 1:
-        print(f"[FAIL] Multiple detections for {img_name}")
-        shutil.copy(img_path, base_output / "detection_incorrect" / img_name)
-        fig, ax = plt.subplots()
-        ax.imshow(image)
-        ax.set_title(f"Multiple Detections | True: {gt_labels.tolist()}")
-        ax.axis("off")
-        fig.savefig(base_output / "detection_incorrect_visual" / img_name)
-        plt.close(fig)
-        for label in gt_labels.tolist():
-            y_true_all.append(label)
-            y_pred_all.append(MISSED_CLASS_ID)
-        failed_detections.append({
-            "image": img_name,
-            "reason": "multiple detections",
-            "gt_count": len(gt_labels)
-        })
-        continue
-
     shutil.copy(img_path, base_output / "detection_correct" / img_name)
 
-    # --- Classification ---
+# --- Classification ---
     pred_boxes = results.boxes.xyxy.cpu().numpy()
     pred_box = pred_boxes[0]
     x1, y1, x2, y2 = map(int, pred_box)
@@ -179,14 +163,32 @@ for img_name in os.listdir(image_folder):
         else:
             cropped.save(base_output / "classification_correct" / f"{img_name}")
     else:
+        filename = f"{img_name}_lowiou.jpg"
+        # Save the predicted crop (first predicted box)
+        x1, y1, x2, y2 = map(int, pred_box)
+        cropped = image.crop((x1, y1, x2, y2))
+        cropped.save(base_output / "detection_incorrect" / filename)
+
+        # Visualize the box
+        fig, ax = plt.subplots()
+        ax.imshow(image)
+        ax.add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                edgecolor='orange', linewidth=2, fill=False))
+        ax.set_title(f"Low IoU | True: {gt_labels.tolist()}")
+        ax.axis("off")
+        fig.savefig(base_output / "detection_incorrect_visual" / filename)
+        plt.close(fig)
+
         for label in gt_labels.tolist():
             y_true_all.append(label)
             y_pred_all.append(MISSED_CLASS_ID)
+
         failed_detections.append({
-            "image": img_name,
+            "image": filename,
             "reason": "low IoU",
             "gt_count": len(gt_labels)
         })
+
 
 # --- Save logs ---
 pd.DataFrame({
@@ -194,7 +196,9 @@ pd.DataFrame({
     "y_pred": y_pred_all
 }).to_csv(results_path, index=False)
 
-pd.DataFrame(failed_detections).to_csv(det_fail_path, index=False)
+df_det = pd.DataFrame(failed_detections)
+df_det.sort_values(by="image", inplace=True)
+df_det.to_csv(det_fail_path, index=False)
 pd.DataFrame(failed_classifications).to_csv(cls_fail_path, index=False)
 
 print(f"\nSaved results to {results_path}")
