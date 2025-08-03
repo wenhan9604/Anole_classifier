@@ -15,18 +15,26 @@ def delete_duplicates(reference_folder_path, edited_folder_path, log_filename="d
     Summary: Remove files in edited folder based on file names found in reference folder. 
         - Performs binary search for item
     '''
+
+    if not os.path.isdir(reference_folder_path) or not os.path.isdir(edited_folder_path):
+        print(f"Input file path does not exist! Exiting function")
+        exit()
+
     ref_folder = os.listdir(reference_folder_path)
     edited_folder = get_sorted_filenames(edited_folder_path)
 
     deleted_files = []
 
     for file in ref_folder:
+
+        file_name, extension = os.path.splitext(file)
+        file = f"{file_name}.txt"
+
         if binary_search(edited_folder, file):
             file_path = os.path.join(edited_folder_path, file)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                deleted_files.append(file)
-                print(f"Deleted duplicate from Folder 2: {file}")
+            os.remove(file_path)
+            deleted_files.append(file)
+            print(f"Deleted duplicate from Folder 2: {file}")
 
     # Write log
     with open(log_filename, "w") as log_file:
@@ -34,11 +42,12 @@ def delete_duplicates(reference_folder_path, edited_folder_path, log_filename="d
         for file in deleted_files:
             log_file.write(file + "\n")
 
-    print(f"\nDone. {len(deleted_files)} file(s) deleted from '{edited_folder}'.")
-    print(f"Log written to '{log_filename}'.")
+    print(f"\nDone. {len(deleted_files)} file(s) deleted from '{edited_folder_path}'.")
+    print(f"\nLog written to '{log_filename}'.")
 
 if __name__ == "__main__":
-    ref_folder = "../Dataset/YOLO_training/base_data/original_cleaned/crestedanole_2000_secondhalf_verified/crestedanole_2000/train/crested_new_images"
-    edited_folder_path = "../Dataset/YOLO_training/base_data/original_cleaned/raw_dataset_unused/CrestedAnole_unused_copy"
+    ref_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/bark_anole_2000_verified/test_labels - Copy/"
+    edited_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/bark_anole_2000_verified/test_labels/"
+
 
     delete_duplicates(ref_folder, edited_folder_path)

@@ -63,8 +63,8 @@ def clean_txt_filenames(directory):
     print("Duplicate info saved to 'txt_duplicates_log.txt'.")
 
 if __name__ == "__main__":
-    # folder_path = "../../Dataset/YOLO_training/base_data/original_test/greenanole_2000/train/labels"  # Update path if needed
-    # clean_txt_filenames(folder_path)
+    # folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/images_test"  # Update path if needed
+    # clean_jpg_filenames(folder_path)
 
-    folder_path = "../../Dataset/YOLO_training/base_data/original_test/Florida_10000_RemovedDuplicates/knightanole_2000/train/labels"  # Change this if needed
+    folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/labels_test"  # Update path if needed
     clean_txt_filenames(folder_path)
