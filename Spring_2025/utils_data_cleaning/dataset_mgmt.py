@@ -167,45 +167,29 @@ def move_image_files_and_test_using_ref(src_folder, dest_folder, ref_folder):
 # move_image_and_text_files(source_folder, destination_parent_folder, size)
 
 #For moving into destination folder's sub folder 
-# source_folder = "../dataset/YOLO_training/knightanole_2000/train"
-# destination_parent_folder = "../dataset/YOLO_training/lizard_10000/"
-# dest_folder_name = ['train', 'valid', 'test']
+source_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/original/split/bark_anole"
+destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/original/split_result/bark_anole"
+dest_folder_name = ['test', 'valid', 'train']
 
-# for folder_name in dest_folder_name:
+for folder_name in dest_folder_name:
 
+    destination_folder_path = f"{destination_parent_folder}/{folder_name}"
+
+    if (folder_name == 'train'):
+        count = 1408
+    else:
+        count = 176
+
+    move_image_and_text_files(source_folder, destination_folder_path, count)
+
+# #For moving into destination folder's sub folder 
+# source_parent_folder = "../dataset/YOLO_training/original_train_val_test_split_labelled/greenanole_2000/"
+# destination_parent_folder = "../dataset/YOLO_training/florida_five_anole_10000/"
+# sub_folders = ['train', 'val', 'test']
+
+# for folder_name in sub_folders:
+
+#     source_folder_path = source_parent_folder + folder_name
 #     destination_folder_path = destination_parent_folder + folder_name
 
-#     if (folder_name == 'train'):
-#         count = 1600
-#     else:
-#         count = 200
-
-#     move_image_and_text_files(source_folder, destination_folder_path, count)
-
-#Move Images only
-
-# source_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/knight_anole"
-# destination_parent_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/cropped_lizard_10000/val/knight_anole"
-
-# move_image_files(source_folder, destination_parent_folder, 200)
-
-# Move images and text using reference folder
-
-# source_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/knightanole_2000/train"
-# destination_parent_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original_split/knightanole_2000/train"
-# ref_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/cropped_lizard_10000/train/knight_anole"
-
-# move_image_files_and_test_using_ref(source_folder, destination_parent_folder, ref_folder)
-
-
-#For moving into destination folder's sub folder 
-source_parent_folder = "../dataset/YOLO_training/original_train_val_test_split_labelled/greenanole_2000/"
-destination_parent_folder = "../dataset/YOLO_training/florida_five_anole_10000/"
-sub_folders = ['train', 'val', 'test']
-
-for folder_name in sub_folders:
-
-    source_folder_path = source_parent_folder + folder_name
-    destination_folder_path = destination_parent_folder + folder_name
-
-    move_image_and_text_files(source_folder_path, destination_folder_path, -1)
+#     move_image_and_text_files(source_folder_path, destination_folder_path, -1)
