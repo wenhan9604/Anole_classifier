@@ -215,22 +215,24 @@ def unit_test_save_image_instances():
 
     print("End of test")
 
-# src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
-# dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/barkanole_2000_cropped"
-# resize_value = (320, 320)
+if (__name__ == "__main__"):
 
-# crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value)
+    # src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
+    # dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/barkanole_2000_cropped"
+    # resize_value = (320, 320)
 
-# unit_test_save_image()
+    # crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value)
 
-# unit_test_save_image_instances()
+    # unit_test_save_image()
 
-src_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/base_data/original_cleaned/florida_10000_cleaned/crop_example"
+    # unit_test_save_image_instances()
 
-dest_folder_path = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/base_data/original_cleaned/florida_10000_cleaned/dest_crop_example"
+    src_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/ichha_new_annotated"
 
-resize_value = (300, 300)
+    dest_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/ichha_new_annotated_cropped"
 
-crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywhn_center")
+    resize_value = (300, 300)
+
+    crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywhn_center")
 
 
