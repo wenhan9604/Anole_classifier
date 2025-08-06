@@ -4,7 +4,7 @@ from pathlib import Path
 import math
 import math
 
-def crop_image(img_path, coord):
+def crop_image_center(img_path, coord):
     "Will crop image based on bounding box coordinate. Coordinate will be given in YOLO format (x_center, y_center, width, height)"
 
     input = cv2.imread(img_path)
@@ -63,13 +63,14 @@ def crop_image_tl_br(img_path, coord):
 
     return cropped_segment
 
-
-def get_coord(labels_file_path, is_coord_normalized = True):
+def get_coord(labels_file_path, img_width_height, is_coord_normalized = True):
     #Get coordinate from YOLOv8 txt format. YOLOv8 txt format are in normalized coordinate (0 to 1). 
-    #Images are all resized to 640x640 from roboflow output.
     #Returns pixel coordinate
 
     instances_coord = []
+
+    img_width = img_width_height[0]
+    img_height = img_width_height[1]
     
     with open(labels_file_path, "r") as file:
         for line in file:
@@ -81,10 +82,10 @@ def get_coord(labels_file_path, is_coord_normalized = True):
             if (is_coord_normalized):
 
                 #Convert to pixel coordinate
-                x_center = np.floor(x_center * 640)
-                y_center = np.floor(y_center * 640)
-                width = np.floor(width * 640)
-                height = np.floor(height * 640)
+                x_center = np.floor(x_center * img_width)
+                y_center = np.floor(y_center * img_height)
+                width = np.floor(width * img_width)
+                height = np.floor(height * img_height)
 
             instances_coord.append((x_center, y_center, width, height))
 
@@ -130,28 +131,32 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
     # Filter to ensure we only copy files, not directories
     images = [img_file for img_file in images if img_file.is_file()]
 
-    count = 0
-    for image in images:
+    processed_image_count = 0
+    output_image_count = 0
+    for img_file_path in images:
 
-        img_name = image.stem
+        img_name = img_file_path.stem
+
+        image = cv2.imread(img_file_path)
+        img_width_height = (image.shape[1], image.shape[0]) #(x, y) or (width, height)
 
         img_text_path = img_name + ".txt"
         labels_file_path = src_txt_folder / img_text_path
 
         #Core functions: Crop and Resize images
         if(coord_type == "xywhn_center"):
-            instances_coord = get_coord(labels_file_path, True)
+            instances_coord = get_coord(labels_file_path, img_width_height, True)
         else:
-            instances_coord = get_coord(labels_file_path, False)
+            instances_coord = get_coord(labels_file_path, img_width_height, False)
 
         instance_count = 0
         for coord in instances_coord:
 
             if(coord_type == "xyxy"):
-                cropped_image = crop_image_tl_br(image, coord)
+                cropped_image = crop_image_tl_br(img_file_path, coord)
 
             elif (coord_type == "xywh_center" or coord_type == "xywhn_center"):
-                cropped_image = crop_image(image, coord)
+                cropped_image = crop_image_center(img_file_path, coord)
 
             resized_img = cv2.resize(cropped_image, resize_value)
 
@@ -159,11 +164,12 @@ def crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coor
             dest_path = dest_folder / dest_img_path
 
             cv2.imwrite(dest_path, resized_img)
-
-            count += 1
             instance_count += 1
+            output_image_count += 1
 
-    print(f"Cropped image count: {count}")
+        processed_image_count += 1
+
+    print(f"Input image count: {processed_image_count}. Individual instance image count: {output_image_count}")
     print(f"Images successfully cropped, resized and saved to {dest_folder}")
 
 def unit_test_save_image():
@@ -176,7 +182,7 @@ def unit_test_save_image():
 
     #Core functions: Crop and Resize images
     coord = get_coord(labels_file_path)
-    cropped_image = crop_image(img_path, coord)
+    cropped_image = crop_image_center(img_path, coord)
     resized_img = cv2.resize(cropped_image, resize_value)
 
     dest_img_name = "test_cropped"
@@ -202,7 +208,7 @@ def unit_test_save_image_instances():
     count = 0
     for coord in instances_coord:
         
-        cropped_image = crop_image(img_path, coord)
+        cropped_image = crop_image_center(img_path, coord)
         resized_img = cv2.resize(cropped_image, resize_value)
 
         dest_img_path = "test_cropped_" + str(count) + ".jpg"
@@ -227,12 +233,27 @@ if (__name__ == "__main__"):
 
     # unit_test_save_image_instances()
 
-    src_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/ichha_new_annotated"
+    # src_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/bark_anole"
+    # dest_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/ichha_new_annotated_cropped"
+    # resize_value = (384, 384)
+    # crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywhn_center")
 
-    dest_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/ichha_new_annotated_cropped"
+    species_name = "crested_anole"
+    resize_value = (384, 384)
 
-    resize_value = (300, 300)
+    source_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/"
+    destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/"
 
-    crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywhn_center")
+    # sub_directories = ['test', 'valid', 'train']
+    # for sub_folder in sub_directories:
+
+    #     source_folder_path = f"{source_parent_folder}/{species_name}/{sub_folder}"
+    #     destination_folder_path = f"{destination_parent_folder}/{sub_folder}/debug"
+
+    #     crop_resize_img_folder(source_folder_path, destination_folder_path, resize_value, coord_type="xywhn_center")
 
 
+    source_folder_path = f"{source_parent_folder}/{species_name}/debug"
+    destination_folder_path = f"{destination_parent_folder}/debug"
+
+    crop_resize_img_folder(source_folder_path, destination_folder_path, resize_value, coord_type="xywhn_center")
