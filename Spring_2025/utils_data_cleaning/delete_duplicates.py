@@ -10,7 +10,7 @@ def binary_search(sorted_list, target):
     index = bisect.bisect_left(sorted_list, target)
     return index < len(sorted_list) and sorted_list[index] == target
 
-def delete_duplicates(reference_folder_path, edited_folder_path, log_filename="deleted_duplicates_log.txt"):
+def delete_duplicates(reference_folder_path, edited_folder_path, file_extension="jpg", log_filename="deleted_duplicates_log.txt"):
     '''
     Summary: Remove files in edited folder based on file names found in reference folder. 
         - Performs binary search for item
@@ -28,13 +28,13 @@ def delete_duplicates(reference_folder_path, edited_folder_path, log_filename="d
     for file in ref_folder:
 
         file_name, extension = os.path.splitext(file)
-        file = f"{file_name}.txt"
+        file = f"{file_name}.{file_extension}"
 
         if binary_search(edited_folder, file):
             file_path = os.path.join(edited_folder_path, file)
             os.remove(file_path)
             deleted_files.append(file)
-            print(f"Deleted duplicate from Folder 2: {file}")
+            print(f"Deleted duplicate from ref folder: {file}")
 
     # Write log
     with open(log_filename, "w") as log_file:
@@ -46,8 +46,8 @@ def delete_duplicates(reference_folder_path, edited_folder_path, log_filename="d
     print(f"\nLog written to '{log_filename}'.")
 
 if __name__ == "__main__":
-    ref_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/bark_anole_2000_verified/test_labels - Copy/"
-    edited_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/bark_anole_2000_verified/test_labels/"
+    ref_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/wenhan_bark_anole/test_labels - Copy"
+    edited_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/wenhan_bark_anole/test_labels"
+    # edited_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/sent_for_cleaning/raw_dataset_unused/BarkAnole_unused/"
 
-
-    delete_duplicates(ref_folder, edited_folder_path)
+    delete_duplicates(ref_folder, edited_folder_path, file_extension="txt")

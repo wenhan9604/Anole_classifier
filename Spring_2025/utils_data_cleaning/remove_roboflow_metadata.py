@@ -8,6 +8,8 @@ def clean_jpg_filenames(directory):
         if '_jpg.rf.' in filename:
             base_name = filename.split('_jpg.rf.')[0]
             new_name = base_name + '.jpg'
+
+            print(f"filename: {filename}")
             src = os.path.join(directory, filename)
             dst = os.path.join(directory, new_name)
 
@@ -63,8 +65,9 @@ def clean_txt_filenames(directory):
     print("Duplicate info saved to 'txt_duplicates_log.txt'.")
 
 if __name__ == "__main__":
-    # folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/images_test"  # Update path if needed
-    # clean_jpg_filenames(folder_path)
+    folder_path = "C:/Users/wenha/Downloads/Anole_Annotate.v3-bark_anole.yolov8/train/images" 
+    clean_jpg_filenames(folder_path)
 
-    folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/labels_test"  # Update path if needed
-    clean_txt_filenames(folder_path)
+
+folder_path = "C:/Users/wenha/Downloads/Anole_Annotate.v3-bark_anole.yolov8/train/labels" 
+clean_txt_filenames(folder_path)
