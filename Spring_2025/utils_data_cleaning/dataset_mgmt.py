@@ -4,7 +4,9 @@ from pathlib import Path
 
 def move_image_and_text_files(src_folder, dest_folder, n=1600):
     """
-    n = last number of files to be copied over. If < 0, will copy all files in the folder
+    Summary : 
+        - Will move images and text files under source folder's sub directory (images and labels) into destination folder's sub directory (images and labels)
+        - n = last number of files to be copied over. If < 0, will copy all files in the folder
     """
     # Ensure source and destination folders exist
     src_img_path = Path(str(src_folder + "/images"))
@@ -59,7 +61,7 @@ def move_image_and_text_files(src_folder, dest_folder, n=1600):
             # print(f"Copied txt file: {corresponding_txt_file_path} -> {dest_txt_path}")
 
 
-    print(f"Successfully copied {len(images[-n:])} files into {dest_folder}")
+    print(f"Successfully moved {len(images[-n:])} files into {dest_folder}")
 
 # For moving into another file 
 
@@ -81,13 +83,13 @@ def move_image_files(src_folder, dest_folder, n=200):
     # Filter to ensure we only copy files, not directories
     images = [img_file for img_file in images if img_file.is_file()]
     
-    # Copy the last 'n' files
+    # move the last 'n' files
     for image in images[-n:]:
         #Move image
         shutil.move(str(image), str(dest_img_path / image.name))
         # print(f"Copied image: {image} -> {dest_img_path}")
 
-    print(f"Successfully copied {len(images[-n:])} files into {dest_folder}")
+    print(f"Successfully moved {len(images[-n:])} files into {dest_folder}")
 
 def move_image_files_and_test_using_ref(src_folder, dest_folder, ref_folder):
     """
@@ -154,42 +156,33 @@ def move_image_files_and_test_using_ref(src_folder, dest_folder, ref_folder):
 
     print(f"Successfully copied {len(ref_images)} files into {dest_folder}")
 
-# move_image_and_text_files: Example usage
-# 
-# destination_folder = "../dataset/YOLO_training/lizard_10000/train"
-# move_image_and_text_files(source_folder, destination_folder)
+# Move sub-directories from source to destination
+source_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/lizard_10000_v3/bark_anole"
+destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/lizard_10000_v3"
 
+sub_directory = ['test', 'valid', 'train']
+for folder_name in sub_directory:
 
-# source_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original/barkanole_2000/train"
-# destination_parent_folder = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original_split/barkanole_2000/test"
-# size = 200
-
-# move_image_and_text_files(source_folder, destination_parent_folder, size)
-
-#For moving into destination folder's sub folder 
-source_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/original/split/bark_anole"
-destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/original/split_result/bark_anole"
-dest_folder_name = ['test', 'valid', 'train']
-
-for folder_name in dest_folder_name:
-
+    source_folder_path = f"{source_parent_folder}/{folder_name}"
     destination_folder_path = f"{destination_parent_folder}/{folder_name}"
 
-    if (folder_name == 'train'):
-        count = 1408
-    else:
-        count = 176
+    count = 0 #Move everything
 
-    move_image_and_text_files(source_folder, destination_folder_path, count)
+    move_image_and_text_files(source_folder_path, destination_folder_path, count)
 
-# #For moving into destination folder's sub folder 
-# source_parent_folder = "../dataset/YOLO_training/original_train_val_test_split_labelled/greenanole_2000/"
-# destination_parent_folder = "../dataset/YOLO_training/florida_five_anole_10000/"
-# sub_folders = ['train', 'val', 'test']
 
-# for folder_name in sub_folders:
+# For splitting 1 source folder into destination folder's sub folder 
+# source_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/original/bark_anole - Copy"
+# destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/original/split/bark_anole"
+# dest_folder_name = ['test', 'valid', 'train']
 
-#     source_folder_path = source_parent_folder + folder_name
-#     destination_folder_path = destination_parent_folder + folder_name
+# for folder_name in dest_folder_name:
 
-#     move_image_and_text_files(source_folder_path, destination_folder_path, -1)
+#     destination_folder_path = f"{destination_parent_folder}/{folder_name}"
+
+#     if (folder_name == 'train'):
+#         count = 1600
+#     else:
+#         count = 200
+
+#     move_image_and_text_files(source_folder, destination_folder_path, count)
