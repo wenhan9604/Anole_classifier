@@ -35,7 +35,7 @@ Next, we will go into the details of the results of each stage of the pipeline a
 
 #### Stage 1 - Lizard Detection Model
 <p align="center">
-  <img src="./project_landing_page/ODmodelPerformance.png"/>
+  <img src="./project_landing_page/ObjectDetectionLargeModelPerformance.png"/>
 </p>
 
 - **Recall** - YOLOv8x scored the best with a <ins>recall value of 86%</ins>. Recall is the most important metrics because achieving high recall indicates less missed detections. This is vital because in the entire 3-stage pipeline, the object detection serves as the first model and it is responsible for detecting the target. Missing the target would mean no image gets passed downstream, resulting in no classification performed at all and affecting the entire pipeline’s result. 
