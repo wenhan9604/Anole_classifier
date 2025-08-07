@@ -28,7 +28,7 @@ The confusion matrix displayed the prediction for the 5 lizard classes and the n
 - Evidently, the graph shows the <ins>high number of false positives of crested anole predictions (above 12%).</ins> This significantly lowered the precision of the pipeline's performance on the crested anole class. 
 
 <p align="center">
-  <img src="./project_landing_page/overall_result.png"/>
+  <img src="./project_landing_page/ObjectDetectionLarge_overall_result.png"/>
 </p>
 
 Next, we will go into the details of the results of each stage of the pipeline as well as the rationale for the chosen metric and models.
