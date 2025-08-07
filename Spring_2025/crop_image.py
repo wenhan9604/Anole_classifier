@@ -238,22 +238,19 @@ if (__name__ == "__main__"):
     # resize_value = (384, 384)
     # crop_resize_img_folder(src_folder_path, dest_folder_path, resize_value, coord_type="xywhn_center")
 
-    species_name = "crested_anole"
-    resize_value = (384, 384)
+    # species_name = "knight_anole"
+    species_names = ["bark_anole", "brown_anole", "crested_anole", "green_anole", "knight_anole"]
+    resize_value = (384, 384) #Following swin transformer format 
 
     source_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/"
     destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/"
 
-    # sub_directories = ['test', 'valid', 'train']
-    # for sub_folder in sub_directories:
+    sub_directories = ['test', 'valid', 'train']
 
-    #     source_folder_path = f"{source_parent_folder}/{species_name}/{sub_folder}"
-    #     destination_folder_path = f"{destination_parent_folder}/{sub_folder}/debug"
+    for species_name in species_names:
+        for sub_folder in sub_directories:
 
-    #     crop_resize_img_folder(source_folder_path, destination_folder_path, resize_value, coord_type="xywhn_center")
+            source_folder_path = f"{source_parent_folder}/{species_name}/{sub_folder}"
+            destination_folder_path = f"{destination_parent_folder}/{sub_folder}/{species_name}"
 
-
-    source_folder_path = f"{source_parent_folder}/{species_name}/debug"
-    destination_folder_path = f"{destination_parent_folder}/debug"
-
-    crop_resize_img_folder(source_folder_path, destination_folder_path, resize_value, coord_type="xywhn_center")
+            crop_resize_img_folder(source_folder_path, destination_folder_path, resize_value, coord_type="xywhn_center")
