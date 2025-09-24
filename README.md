@@ -39,8 +39,8 @@ A comprehensive React application for identifying and classifying Florida anole 
 ### Installation
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd anole_classifier_UI
+git clone https://github.com/codingFungus/anole_classification.git
+cd anole_classification
 
 # Install dependencies
 npm install
