@@ -1,42 +1,26 @@
-# 🦎 Florida Anole Classifier
+# Florida Anole Classifier
 
-A comprehensive React application for identifying and classifying Florida anole species from images, with citizen science integration and mobile support.
+A React web application for identifying and classifying Florida anole species from uploaded images. The app provides a user-friendly interface for species detection with confidence scoring and citizen science integration.
 
-## ✨ Features
+## What This Does
 
-### 🔍 Multi-Species Detection
-- **Detects multiple lizards** in a single image
-- **Identifies 5 Florida anole species**:
-  - Green Anole (*Anolis carolinensis*)
-  - Brown Anole (*Anolis sagrei*)
-  - Crested Anole (*Anolis cristatellus*)
-  - Knight Anole (*Anolis equestris*)
-  - Bark Anole (*Anolis distichus*)
+- **Species Classification**: Identifies 5 Florida anole species (Green Anole, Brown Anole, Crested Anole, Knight Anole, Bark Anole)
+- **Multi-Detection**: Can detect multiple lizards in a single image
+- **Confidence Scoring**: Shows confidence levels for each species prediction with visual indicators
+- **Mobile Support**: Responsive design optimized for mobile devices
+- **Citizen Science**: Integration with iNaturalist for contributing observations (currently simulated)
 
-### 📊 Confidence Scoring
-- **Real-time confidence levels** for each species prediction
-- **Visual progress bars** showing prediction certainty
-- **Color-coded confidence indicators** (High/Medium/Low)
+## Current Status
 
-### 🌐 iNaturalist Integration
-- **Automatic upload** of classified observations to iNaturalist
-- **Location tagging** (when GPS is available)
-- **Citizen science contribution** with AI-detected species data
-- **Batch upload** for multiple detections
+The application currently uses hardcoded mock predictions for testing the UI/UX flow. The prediction system randomly generates species classifications with confidence scores, and the iNaturalist upload is simulated. These will be replaced with actual machine learning model integration and real API calls.
 
-### 📱 Mobile-First Design
-- **Responsive design** optimized for iOS and Android
-- **Touch-friendly interface** with proper touch targets
-- **Camera integration** for direct photo capture
-- **Offline-capable** with service worker support
-
-## 🚀 Getting Started
+## How to Launch
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18 or higher
 - npm or yarn
 
-### Installation
+### Installation and Setup
 ```bash
 # Clone the repository
 git clone https://github.com/codingFungus/anole_classification.git
@@ -45,117 +29,30 @@ cd anole_classification
 # Install dependencies
 npm install
 
-# Start development server
+# Start the development server
 npm run dev
 ```
+
+The application will be available at `http://localhost:5173` (or the next available port).
 
 ### Building for Production
 ```bash
 # Build the application
 npm run build
 
-# Preview production build
+# Preview the production build
 npm run preview
 ```
 
-## 🏗️ Architecture
+## Project Structure
 
-### Components
-- **LandingPage**: Welcome screen with feature overview
-- **PredictionPage**: Main classification interface
-- **iNaturalistService**: API integration service
+- `src/pages/LandingPage.tsx` - Welcome screen with features overview
+- `src/pages/PredictionPage.tsx` - Main classification interface
+- `src/services/iNaturalistService.ts` - iNaturalist API integration service
+- `src/App.css` - Styling and mobile responsiveness
 
-### Key Features Implementation
-- **Multi-detection**: Handles multiple lizards per image
-- **Confidence scoring**: Visual feedback on prediction certainty
-- **Mobile optimization**: Responsive design with touch support
-- **API integration**: Seamless iNaturalist upload workflow
+## Next Steps
 
-## 🔧 Configuration
-
-### Environment Variables
-Create a `.env` file in the root directory:
-```env
-VITE_INATURALIST_CLIENT_ID=your_client_id
-VITE_INATURALIST_CLIENT_SECRET=your_client_secret
-VITE_ML_API_URL=your_ml_model_endpoint
-```
-
-### iNaturalist Setup
-1. Register your app at [iNaturalist Developer Portal](https://www.inaturalist.org/oauth/applications)
-2. Configure OAuth redirect URLs
-3. Add your client credentials to environment variables
-
-## 📱 Mobile Features
-
-### Touch Optimization
-- **44px minimum touch targets** for accessibility
-- **Swipe gestures** for navigation
-- **Pinch-to-zoom** for image preview
-- **Haptic feedback** on supported devices
-
-### Camera Integration
-- **Direct camera access** for field photography
-- **Image compression** for faster uploads
-- **EXIF data preservation** for location tagging
-
-### Performance
-- **Lazy loading** for images and components
-- **Service worker** for offline functionality
-- **Optimized bundle size** for mobile networks
-
-## 🧪 Testing
-
-### Manual Testing
-1. **Upload test images** with various anole species
-2. **Test mobile responsiveness** on different screen sizes
-3. **Verify iNaturalist integration** with test observations
-4. **Check confidence scoring** accuracy
-
-### Automated Testing
-```bash
-# Run linting
-npm run lint
-
-# Run type checking
-npm run type-check
-```
-
-## 🚀 Deployment
-
-### Vercel (Recommended)
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-```
-
-### Netlify
-```bash
-# Build and deploy
-npm run build
-# Upload dist/ folder to Netlify
-```
-
-### Mobile App (PWA)
-The app is configured as a Progressive Web App and can be installed on mobile devices for native-like experience.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **iNaturalist** for citizen science platform
-- **Florida anole research community** for species data
-- **React and Vite** for the development framework
+- Integrate actual machine learning model for species classification
+- Implement real iNaturalist API authentication and upload functionality
+- Add support for all 5 Florida anole species in the prediction system
