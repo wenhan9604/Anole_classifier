@@ -182,7 +182,8 @@ export default function PredictionPage() {
             border: "none",
             borderRadius: "6px",
             fontSize: "16px",
-            cursor: selectedFile && !isLoading ? "pointer" : "not-allowed"
+            cursor: selectedFile && !isLoading ? "pointer" : "not-allowed",
+            marginLeft: "20px"
           }}
         >
           {isLoading ? (
