@@ -1,0 +1,25 @@
+Class: bark_anole
+  Precision: 0.9439
+  Recall: 0.9250
+  F1-score: 0.9343
+------------------------------
+Class: brown_anole
+  Precision: 0.8910
+  Recall: 0.9400
+  F1-score: 0.9148
+------------------------------
+Class: crested_anole
+  Precision: 0.9275
+  Recall: 0.8950
+  F1-score: 0.9109
+------------------------------
+Class: green_anole
+  Precision: 0.9557
+  Recall: 0.9700
+  F1-score: 0.9628
+------------------------------
+Class: knight_anole
+  Precision: 0.9797
+  Recall: 0.9650
+  F1-score: 0.9723
+------------------------------

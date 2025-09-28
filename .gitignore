@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python files
+*.txt
+*.pyc
+
+# Dataset files
+Dataset/
+
+# Archive files
+*.zip
+
+# Model files
+Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
