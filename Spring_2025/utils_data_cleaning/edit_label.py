@@ -23,7 +23,7 @@ def edit_label(root_dir, target_char):
             file.truncate()
 
 
-root_dir = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/original_train_val_test_split_labelled/knightanole_2000/"
+root_dir = "C:/Projects/OMSCS/Lizard_Classification/Anole_classifier/Dataset/YOLO_training/dataset_v4/florida_five_anole_10000_v4/per_species_split/knight_anole"
 
 target_char = "4"
 
