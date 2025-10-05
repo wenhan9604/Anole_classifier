@@ -233,21 +233,16 @@ def move_image_files_and_test_using_ref(src_folder, dest_folder, ref_folder):
 
 #     copy_image_and_text_files(source_folder_path, destination_folder_path, count)
 
-source_parent_folder = "../Dataset/YOLO_training/dataset_v4/cropped_lizard_10000_v4/unsplit"
-destination_parent_folder = "../Dataset/YOLO_training/dataset_v4/cropped_lizard_10000_v4/split"
+source_parent_folder = "../Dataset/YOLO_training/dataset_v4/florida_five_anole_10000_v4/per_species_split"
+destination_parent_folder = "../Dataset/YOLO_training/dataset_v4/florida_five_anole_10000_v4"
 
-source_sub_directory = ['green_anole', 'knight_anole']
+source_sub_directory = ["bark_anole", "brown_anole", "crested_anole", "green_anole", "knight_anole"]
 destination_sub_directory = ['test', 'valid', 'train']
 
 for species in source_sub_directory:
     for split in destination_sub_directory:
 
-        source_folder_path = f"{source_parent_folder}/{species}"
-        destination_folder_path = f"{destination_parent_folder}/{species}/{split}"
+        source_folder_path = f"{source_parent_folder}/{species}/{split}"
+        destination_folder_path = f"{destination_parent_folder}/{split}"
 
-        if (split == 'train'):
-            count = 1600
-        else:
-            count = 200
-
-        move_image_and_text_files(source_folder_path, destination_folder_path, count)
+        move_image_and_text_files(source_folder_path, destination_folder_path, n=-1)
