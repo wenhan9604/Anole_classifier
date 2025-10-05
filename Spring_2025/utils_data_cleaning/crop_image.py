@@ -242,8 +242,8 @@ if (__name__ == "__main__"):
     species_names = ["bark_anole", "brown_anole", "crested_anole", "green_anole", "knight_anole"]
     resize_value = (384, 384) #Following swin transformer format 
 
-    source_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/"
-    destination_parent_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_revised/cropped_lizard_10000_v3/"
+    source_parent_folder = "../Dataset/YOLO_training/dataset_v4/cropped_lizard_10000_v4/split"
+    destination_parent_folder = "../Dataset/YOLO_training/dataset_v4/cropped_lizard_10000_v4"
 
     sub_directories = ['test', 'valid', 'train']
 
