@@ -1,0 +1,31 @@
+name: anole-classifier
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch=2.7.*
+  - torchvision=0.22.*
+  - numpy>=2.1.0
+  - pandas>=2.2.0
+  - scikit-learn>=1.5.0
+  - pillow>=11.0.0
+  # Image processing libraries (required by torchvision)
+  - jpeg
+  - libpng
+  - libtiff
+  - pip
+  - pip:
+      # FastAPI backend
+      - fastapi>=0.115.0
+      - uvicorn[standard]>=0.32.0
+      - python-multipart>=0.0.12
+      - pydantic>=2.9.2
+      - pydantic-settings>=2.6.0
+      # ML models
+      - ultralytics>=8.3.38
+      - transformers>=4.46.3
+      # Utilities
+      - python-dotenv>=1.0.1
+

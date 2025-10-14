@@ -48,33 +48,38 @@ export default function PredictionPage() {
     setIsLoading(true);
     
     try {
-      // TODO: Replace with actual ML model API call
-      // For now, simulate realistic predictions with confidence scores
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Create form data with the image file
+      const formData = new FormData();
+      formData.append('file', selectedFile);
       
-      const mockResult: DetectionResult = {
-        totalLizards: Math.floor(Math.random() * 3) + 1, // 1-3 lizards
-        predictions: [
-          {
-            species: "Green Anole",
-            scientificName: "Anolis carolinensis",
-            confidence: Math.random() * 0.3 + 0.7, // 70-100%
-            count: 1
-          },
-          ...(Math.random() > 0.5 ? [{
-            species: "Brown Anole",
-            scientificName: "Anolis sagrei",
-            confidence: Math.random() * 0.4 + 0.6, // 60-100%
-            count: 1
-          }] : [])
-        ],
+      // Call the backend API
+      const response = await fetch('http://localhost:8000/api/predict', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Transform API response to match our DetectionResult interface
+      const result: DetectionResult = {
+        totalLizards: data.totalLizards,
+        predictions: data.predictions.map((pred: any) => ({
+          species: pred.species,
+          scientificName: pred.scientificName,
+          confidence: pred.confidence,
+          count: pred.count
+        })),
         imageUrl: previewUrl || undefined
       };
       
-      setDetectionResult(mockResult);
+      setDetectionResult(result);
     } catch (error) {
       console.error("Prediction failed:", error);
-      alert("Prediction failed. Please try again.");
+      alert(`Prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure the backend server is running.`);
     } finally {
       setIsLoading(false);
     }
