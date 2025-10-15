@@ -30,6 +30,5 @@ def health() -> dict:
 # Routers
 app.include_router(observations.router, prefix="/api", tags=["observations"])
 app.include_router(species.router, prefix="/api", tags=["species"])
-app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(predict.router, prefix="/api", tags=["predict"])
 
