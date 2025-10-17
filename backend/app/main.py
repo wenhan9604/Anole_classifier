@@ -2,13 +2,12 @@
 FastAPI backend for Florida Anole Species Classification
 Serves the 3-stage ML pipeline: Detection -> Cropping -> Classification
 """
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+import os
 import logging
-from pathlib import Path
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.predict import router as predict_router
+from .routers import observations, species, auth, predict
 
 # Configure logging
 logging.basicConfig(
@@ -16,6 +15,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def get_cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -26,17 +31,14 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# Configure CORS for frontend (allow all localhost ports for development)
+# Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://localhost:\d+",  # Allow any localhost port
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include routers
-app.include_router(predict_router, prefix="/api", tags=["prediction"])
 
 @app.get("/")
 async def root():
@@ -47,14 +49,25 @@ async def root():
         "version": "1.0.0"
     }
 
+@app.get("/health")
+def health() -> dict:
+    """Basic health check endpoint"""
+    return {"status": "ok"}
+
 @app.get("/api/health")
-async def health():
+async def api_health():
     """Detailed health check"""
     return {
         "status": "healthy",
         "models_loaded": False,  # Will be updated by model loader
         "gpu_available": False   # Will be updated by model loader
     }
+
+# Include routers
+app.include_router(observations.router, prefix="/api", tags=["observations"])
+app.include_router(species.router, prefix="/api", tags=["species"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(predict.router, prefix="/api", tags=["predict"])
 
 if __name__ == "__main__":
     import uvicorn
