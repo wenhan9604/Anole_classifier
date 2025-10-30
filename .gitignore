@@ -91,3 +91,12 @@ lerna-debug.log*
 
 # Archives
 *.zip
+
+# Ignore model weights and exports
+model_export/
+Spring_2025/ultralytics_runs/
+*.pt
+*.bin
+*.safetensors
+*.h5
+*.onnx

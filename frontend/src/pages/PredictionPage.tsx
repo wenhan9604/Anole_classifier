@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { iNaturalistAPI, getCurrentLocation } from "../services/iNaturalistService";
 import type { iNaturalistObservation } from "../services/iNaturalistService";
@@ -17,6 +17,7 @@ interface PredictionResult {
   scientificName: string;
   confidence: number;
   count: number;
+  box?: [number, number, number, number]; // [x1, y1, x2, y2] bounding box coordinates
 }
 
 interface DetectionResult {
@@ -31,6 +32,8 @@ export default function PredictionPage() {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToiNaturalist, setUploadingToiNaturalist] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -71,10 +74,15 @@ export default function PredictionPage() {
           species: pred.species,
           scientificName: pred.scientificName,
           confidence: pred.confidence,
-          count: pred.count
+          count: pred.count,
+          box: pred.box // Include bounding box coordinates
         })),
         imageUrl: previewUrl || undefined
       };
+      
+      // Debug: log bounding boxes
+      console.log("Detection result:", result);
+      console.log("Boxes:", result.predictions.map(p => p.box));
       
       setDetectionResult(result);
     } catch (error) {
@@ -103,7 +111,7 @@ export default function PredictionPage() {
           count: prediction.count,
           imageFile: selectedFile,
           location: location || undefined,
-          notes: `Detected by AI with ${Math.round(prediction.confidence * 100)}% confidence`
+          notes: `Detected by AI`
         };
         
         return iNaturalistAPI.uploadObservation(observation);
@@ -161,8 +169,9 @@ export default function PredictionPage() {
         />
         
         {previewUrl && (
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={{ marginBottom: "1rem", position: "relative", display: "inline-block" }}>
             <img 
+              ref={imageRef}
               src={previewUrl} 
               alt="Preview" 
               className="image-preview"
@@ -170,9 +179,114 @@ export default function PredictionPage() {
                 maxWidth: "300px", 
                 height: "auto", 
                 borderRadius: "6px",
-                border: "2px solid #ddd"
+                border: "2px solid #ddd",
+                display: "block"
               }} 
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                setImageDimensions({
+                  width: img.naturalWidth,
+                  height: img.naturalHeight
+                });
+              }}
             />
+            {/* Draw bounding boxes overlay - matching pipeline_evaluation.py coordinate system */}
+            {(() => {
+              if (!detectionResult || !detectionResult.predictions || !imageDimensions || !imageRef.current) {
+                return null;
+              }
+              
+              const boxesWithCoords = detectionResult.predictions.filter(p => p.box && Array.isArray(p.box) && p.box.length === 4);
+              console.log("Rendering boxes:", boxesWithCoords.length, "boxes found");
+              console.log("Image dimensions:", imageDimensions);
+              console.log("Display dimensions:", imageRef.current.clientWidth, imageRef.current.clientHeight);
+              
+              if (boxesWithCoords.length === 0) {
+                return null;
+              }
+              
+              return (
+                <div 
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: `${imageRef.current.clientWidth}px`,
+                    height: `${imageRef.current.clientHeight}px`,
+                    pointerEvents: "none",
+                    overflow: "visible"
+                  }}
+                >
+                  {boxesWithCoords.map((prediction, idx) => {
+                    if (!prediction.box || prediction.box.length !== 4 || !imageRef.current) return null;
+                    
+                    // Get actual image dimensions (what YOLO used)
+                    const imgNaturalWidth = imageDimensions.width;
+                    const imgNaturalHeight = imageDimensions.height;
+                    
+                    // Get displayed image dimensions
+                    const displayWidth = imageRef.current.clientWidth;
+                    const displayHeight = imageRef.current.clientHeight;
+                    
+                    // Calculate scale factors (matching pipeline_evaluation.py: boxes are in absolute pixels)
+                    // YOLO returns coordinates in original image pixel space
+                    const scaleX = displayWidth / imgNaturalWidth;
+                    const scaleY = displayHeight / imgNaturalHeight;
+                    
+                    // Extract bounding box coordinates [x1, y1, x2, y2] from pipeline_evaluation.py format
+                    const [x1, y1, x2, y2] = prediction.box;
+                    
+                    // Scale coordinates to displayed image size
+                    const left = x1 * scaleX;
+                    const top = y1 * scaleY;
+                    const width = (x2 - x1) * scaleX;
+                    const height = (y2 - y1) * scaleY;
+                    
+                    console.log(`Box ${idx}: [${x1}, ${y1}, ${x2}, ${y2}] -> scaled: [${left}, ${top}, ${width}, ${height}]`);
+                    
+                    // Color based on confidence (green=high, yellow=medium, red=low)
+                    const color = prediction.confidence > 0.8 ? "#28a745" : prediction.confidence > 0.6 ? "#ffc107" : "#dc3545";
+                    
+                    return (
+                      <div key={idx}>
+                        {/* Bounding box rectangle */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: `${left}px`,
+                            top: `${top}px`,
+                            width: `${width}px`,
+                            height: `${height}px`,
+                            border: `3px solid ${color}`,
+                            borderRadius: "4px",
+                            boxSizing: "border-box"
+                          }}
+                        />
+                        {/* Label above box */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: `${left}px`,
+                            top: `${Math.max(0, top - 25)}px`,
+                            backgroundColor: color,
+                            color: "white",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            fontWeight: "bold",
+                            whiteSpace: "nowrap",
+                            pointerEvents: "none",
+                            zIndex: 10
+                          }}
+                        >
+                          {prediction.species} ({(prediction.confidence * 100).toFixed(1)}%)
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
         
@@ -249,7 +363,7 @@ export default function PredictionPage() {
                   fontWeight: "bold",
                   whiteSpace: "nowrap"
                 }}>
-                  {Math.round(prediction.confidence * 100)}% confidence
+                  {(prediction.confidence * 100).toFixed(1)}% confidence
                 </span>
               </div>
               
