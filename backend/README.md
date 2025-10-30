@@ -12,8 +12,8 @@ FastAPI backend serving the 3-stage ML pipeline for anole species detection and 
 
 ### Models
 
-- **Detection**: Fine-tuned YOLOv8n
-- **Classification**: Fine-tuned Swin Transformer (Base)
+- **Detection**: Fine-tuned YOLOv8n (`Spring_2025/ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt`)
+- **Classification**: Fine-tuned Swin Transformer (Base) - Local: `model_export/swin_transformer_base_lizard_v4/` or HuggingFace: `swin-base-patch4-window12-384-finetuned-lizard-class-swin-base`
 
 ## Quick Start
 
@@ -39,6 +39,9 @@ py -m venv .venv
 
 ```bash
 pip install -r requirements.txt
+
+# Install ML dependencies (required for prediction endpoint)
+pip install ultralytics transformers torch Pillow
 ```
 
 ### 3) Run the API server
@@ -129,13 +132,13 @@ docker run -p 8000:8000 -v /path/to/models:/app/models anole-classifier-backend
       "scientificName": "Anolis carolinensis",
       "confidence": 0.94,
       "count": 1,
-      "boundingBox": [120.5, 80.2, 250.3, 200.1],
-      "detectionConfidence": 0.89
+      "box": [120.5, 80.2, 250.3, 200.1]
     }
-  ],
-  "processingTime": 1.23
+  ]
 }
 ```
+
+**Note**: The `box` field contains bounding box coordinates `[x1, y1, x2, y2]` in the original image coordinate system. Confidence scores are calibrated using temperature scaling (T=2.0) for more realistic values.
 
 - `GET /api/model-info` — Get information about loaded models
 - `GET /api/health` — Health check endpoint
@@ -147,24 +150,41 @@ docker run -p 8000:8000 -v /path/to/models:/app/models anole-classifier-backend
 - `GET /api/species/{scientific_name}` — Species details (mock)
 - `POST /api/auth/mock-login` — Mock auth tokens
 
-## Using the Spring_2025 Pipeline
+## ML Pipeline Features
 
-The `/api/predict` endpoint can use the Spring_2025 pipeline (YOLOv8 detection + Swin classification) if the required models and packages are available. Configure via env vars and install optional deps:
+### Detection and Classification
+The `/api/predict` endpoint uses a 3-stage pipeline:
 
-1) Install optional ML dependencies
+1. **YOLOv8 Detection**: Detects lizards with bounding boxes
+2. **Deduplication**: Merges overlapping detections using IoU and center distance
+3. **Swin Classification**: Classifies each unique detection into 5 species
 
+### Confidence Calibration
+- **Temperature Scaling**: Default T=2.0 for more realistic confidence scores
+- **Advanced Calibration**: Support for external calibrators via `CALIBRATION_PATH` env var
+- **Methods**: Temperature scaling, Platt scaling OvR, Isotonic regression OvR
+
+### Model Paths (Auto-detected)
+- **YOLO**: `Spring_2025/ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt`
+- **Swin**: `model_export/swin_transformer_base_lizard_v4/` (local) or HuggingFace fallback
+
+### Environment Variables (Optional)
 ```bash
-pip install ultralytics transformers torch Pillow
+export DETECTION_WEIGHTS_PATH="path/to/your/yolo/weights.pt"
+export CLASSIFICATION_MODEL_ID="your-model-id-or-path"
+export CALIBRATION_PATH="path/to/calibration/model"
 ```
 
-2) Provide model paths (defaults are shown):
-
+### How teammates should place model files locally
+- Download YOLOv8 weights and place at:
+  - `Spring_2025/ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt`
+- Download the Swin model folder (containing `config.json` and model weights) and place at:
+  - `model_export/swin_transformer_base_lizard_v4/`
+- You can also point to custom locations using env vars before launching the backend:
 ```bash
-export DETECTION_WEIGHTS_PATH=Spring_2025/runs/detect/train_yolov8n_v2/weights/best.pt
-export CLASSIFICATION_MODEL_ID=swin-base-patch4-window12-384-finetuned-lizard-class-swin-base
+export DETECTION_WEIGHTS_PATH="/absolute/path/to/best.pt"
+export CLASSIFICATION_MODEL_ID="/absolute/path/to/swin_transformer_base_lizard_v4"  # or a HuggingFace ID
 ```
-
-3) Start the server. If models or deps are missing, the endpoint falls back to mock predictions.
 
 ## Testing
 
@@ -194,23 +214,24 @@ By default, CORS allows `http://localhost:5173`. To override, set `CORS_ORIGINS`
 ```
 backend/
 ├── app/
-│   ├── main.py              # FastAPI app
+│   ├── main.py                    # FastAPI app
 │   ├── models/
-│   │   ├── pipeline.py      # 3-stage pipeline
-│   │   └── model_loader.py  # Singleton loader
+│   │   ├── pipeline.py            # 3-stage pipeline
+│   │   └── model_loader.py        # Singleton loader
 │   ├── api/
-│   │   └── predict.py       # Prediction endpoint
+│   │   └── predict.py             # Prediction endpoint
 │   ├── routers/
-│   │   ├── auth.py          # Authentication endpoints
-│   │   ├── observations.py  # Observation management
-│   │   ├── species.py       # Species information
-│   │   └── predict.py       # Prediction endpoints
+│   │   ├── auth.py                # Authentication endpoints
+│   │   ├── observations.py        # Observation management
+│   │   ├── species.py             # Species information
+│   │   └── predict.py             # Prediction endpoints
 │   ├── schemas/
-│   │   └── prediction.py    # Pydantic models
+│   │   └── prediction.py          # Pydantic models
 │   └── services/
-│       └── pipeline_inference.py  # ML pipeline service
-├── environment.yml          # Conda environment spec
-├── requirements.txt         # Pip dependencies (for Docker)
+│       ├── pipeline_inference.py  # ML pipeline service
+│       └── calibration.py         # Confidence calibration methods
+├── environment.yml                # Conda environment spec
+├── requirements.txt               # Pip dependencies (for Docker)
 └── README.md
 ```
 
@@ -218,6 +239,25 @@ backend/
 
 - **environment.yml**: Conda environment specification with all dependencies
 - **requirements.txt**: Maintained for Docker builds and CI/CD pipelines
+
+## Key Features
+
+### Detection Deduplication
+- **IoU-based merging**: Overlapping detections with IoU > 0.25 are merged
+- **Center distance check**: Detections with centers within 50% of average box size are merged
+- **Confidence-based selection**: Highest confidence detection is kept from each group
+
+### Confidence Calibration
+- **Temperature Scaling**: Divides logits by temperature (T=2.0) before softmax
+- **Realistic Scores**: Prevents overly confident predictions (100% confidence)
+- **External Calibrators**: Support for advanced calibration methods
+
+### Supported Species
+1. Bark Anole (*Anolis distichus*)
+2. Brown Anole (*Anolis sagrei*)
+3. Crested Anole (*Anolis cristatellus*)
+4. Green Anole (*Anolis carolinensis*)
+5. Knight Anole (*Anolis equestris*)
 
 ## Notes
 
