@@ -17,6 +17,31 @@ FastAPI backend serving the 3-stage ML pipeline for anole species detection and 
 
 ## Quick Start
 
+### Launch (backend-integration branch)
+
+Use these exact commands to run the app locally for this branch.
+
+Backend (FastAPI):
+
+```bash
+cd /Users/anqizheng/Desktop/Anole_classifier/backend
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+pip install -r requirements.txt
+pip install "uvicorn[standard]" fastapi Pillow
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Frontend (Vite/React):
+
+```bash
+cd /Users/anqizheng/Desktop/Anole_classifier/frontend
+npm install
+npm run dev -- --host --port 5173
+```
+
+Open the UI at `http://localhost:5173`. The frontend calls the backend at `http://localhost:8000`.
+
 ### 1) Create and activate a virtual environment
 
 macOS/Linux:
