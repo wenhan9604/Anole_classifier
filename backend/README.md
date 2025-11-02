@@ -12,8 +12,8 @@ FastAPI backend serving the 3-stage ML pipeline for anole species detection and 
 
 ### Models
 
-- **Detection**: Fine-tuned YOLOv8n (`Spring_2025/models/train_yolov8n_v2/weights/best.pt`)
-- **Classification**: Fine-tuned Swin Transformer: `Spring_2025/models/swin_transformer_base_lizard_v4/`
+- **Detection**: Fine-tuned YOLOv8n :`Spring_2025/models/train_yolov8n_v2/weights/best.pt`
+- **Classification**: Fine-tuned Swin Transformer: `Spring_2025/models/swin_transformer_base_lizard_v4`
 
 ## Quick Start
 
