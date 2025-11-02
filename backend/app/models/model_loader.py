@@ -22,8 +22,8 @@ class ModelLoader:
     
     def get_pipeline(
         self,
-        yolo_model_path: str = "../Spring_2025/ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt",
-        swin_model_path: str = "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base",  # Using base model for now - update with your fine-tuned model
+        yolo_model_path: str = "../Spring_2025/models/train_yolov8n_v2/weights/best.pt",
+        swin_model_path: str = "../Spring_2025/models/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base",  # Using base model for now - update with your fine-tuned model
         force_reload: bool = False
     ) -> AnolePipeline:
         """
