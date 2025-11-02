@@ -64,7 +64,8 @@ def _get_model_paths() -> Tuple[str, str]:
     else:
         # Check if local model folder exists in Spring_2025/models (relative to backend/ directory)
         local_model_path = os.path.join("..", "Spring_2025", "models", "swin_transformer_base_lizard_v4")
-        if os.path.exists(local_model_path):
+        config_file = os.path.join(local_model_path, "config.json")
+        if os.path.exists(local_model_path) and os.path.exists(config_file):
             clf = os.path.abspath(local_model_path)  # Use root folder
         else:
             # Check alternative model_export folder
