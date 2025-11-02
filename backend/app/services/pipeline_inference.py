@@ -63,17 +63,9 @@ def _get_model_paths() -> Tuple[str, str]:
         clf = clf_env
     else:
         # Check if local model folder exists in Spring_2025/models (relative to backend/ directory)
-        local_model_path = os.path.join("..", "Spring_2025", "models", "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
+        local_model_path = os.path.join("..", "Spring_2025", "models", "swin_transformer_base_lizard_v4")
         if os.path.exists(local_model_path):
-            # Check for a checkpoint folder (use the latest checkpoint if available)
-            checkpoint_352 = os.path.join(local_model_path, "checkpoint-352")
-            checkpoint_16 = os.path.join(local_model_path, "checkpoint-16")
-            if os.path.exists(checkpoint_352):
-                clf = os.path.abspath(checkpoint_352)  # Use checkpoint-352 (latest)
-            elif os.path.exists(checkpoint_16):
-                clf = os.path.abspath(checkpoint_16)  # Use checkpoint-16
-            else:
-                clf = os.path.abspath(local_model_path)  # Use root folder
+            clf = os.path.abspath(local_model_path)  # Use root folder
         else:
             # Check alternative model_export folder
             alt_model_path = os.path.join("..", "model_export", "swin_transformer_base_lizard_v4")
