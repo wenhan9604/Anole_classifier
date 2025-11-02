@@ -43,7 +43,8 @@ def _get_model_paths() -> Tuple[str, str]:
         # Match pipeline_evaluation.py which uses ./runs/detect/train_yolov8n_v2/weights/best.pt
         # But actual location is ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt
         candidates = [
-            os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),  # Actual location
+            os.path.join("..", "Spring_2025", "models", "train_yolov8n_v2", "weights", "best.pt"),  # New location
+            os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),  # Old location
             os.path.join("..", "Spring_2025", "runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),  # Try original path too
             os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n", "weights", "best.pt"),
             os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov11n", "weights", "best.pt"),
@@ -56,18 +57,31 @@ def _get_model_paths() -> Tuple[str, str]:
         # Priority 3: Default fallback path
         if det is None:
             det = os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n", "weights", "best.pt")
-    # Classification model: Check env var first, then try local model_export folder, then HuggingFace
+    # Classification model: Check env var first, then try local models folder, then HuggingFace
     clf_env = os.getenv("CLASSIFICATION_MODEL_ID")
     if clf_env:
         clf = clf_env
     else:
-        # Check if local model_export folder exists (relative to backend/ directory)
-        local_model_path = os.path.join("..", "model_export", "swin_transformer_base_lizard_v4")
+        # Check if local model folder exists in Spring_2025/models (relative to backend/ directory)
+        local_model_path = os.path.join("..", "Spring_2025", "models", "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
         if os.path.exists(local_model_path):
-            clf = os.path.abspath(local_model_path)  # Use absolute path for from_pretrained
+            # Check for a checkpoint folder (use the latest checkpoint if available)
+            checkpoint_352 = os.path.join(local_model_path, "checkpoint-352")
+            checkpoint_16 = os.path.join(local_model_path, "checkpoint-16")
+            if os.path.exists(checkpoint_352):
+                clf = os.path.abspath(checkpoint_352)  # Use checkpoint-352 (latest)
+            elif os.path.exists(checkpoint_16):
+                clf = os.path.abspath(checkpoint_16)  # Use checkpoint-16
+            else:
+                clf = os.path.abspath(local_model_path)  # Use root folder
         else:
-            # Fallback to HuggingFace model ID (will download if not cached)
-            clf = "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base"
+            # Check alternative model_export folder
+            alt_model_path = os.path.join("..", "model_export", "swin_transformer_base_lizard_v4")
+            if os.path.exists(alt_model_path):
+                clf = os.path.abspath(alt_model_path)
+            else:
+                # Fallback to HuggingFace model ID (will download if not cached)
+                clf = "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base"
     return det, clf
 
 
