@@ -41,7 +41,8 @@ def _get_model_paths() -> Tuple[str, str]:
     else:
         # Priority 2: Check common YOLO model locations
         candidates = [
-            os.path.join("..", "Spring_2025", "yolov8x", "weights", "best.pt"),  # YOLOv8x trained model
+            os.path.join("..", "Spring_2025", "models", "yolov8x", "best.pt"),  # YOLOv8x trained model (unified location)
+            os.path.join("..", "Spring_2025", "yolov8x", "weights", "best.pt"),  # YOLOv8x trained model (legacy)
             os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),
             os.path.join("..", "Spring_2025", "runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),
             os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n", "weights", "best.pt"),
@@ -62,7 +63,8 @@ def _get_model_paths() -> Tuple[str, str]:
     else:
         # Check multiple local model locations
         clf_candidates = [
-            os.path.join("..", "Spring_2025", "swin_transformer_base_lizard_v4"),  # Primary location
+            os.path.join("..", "Spring_2025", "models", "swin_transformer_base_lizard_v4"),  # Unified location
+            os.path.join("..", "Spring_2025", "swin_transformer_base_lizard_v4"),  # Legacy location
             os.path.join("..", "model_export", "swin_transformer_base_lizard_v4"),
         ]
         clf = None
