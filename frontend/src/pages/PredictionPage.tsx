@@ -1,7 +1,9 @@
-import { useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { iNaturalistAPI, getCurrentLocation } from "../services/iNaturalistService";
 import type { iNaturalistObservation } from "../services/iNaturalistService";
+import { AnoleDetectionService } from "../services/AnoleDetectionService";
+import type { DetectionMode } from "../services/AnoleDetectionService";
 
 // Define the 5 Florida anole species (for reference)
 // const FLORIDA_ANOLE_SPECIES = [
@@ -27,13 +29,30 @@ interface DetectionResult {
 }
 
 export default function PredictionPage() {
+  const [searchParams] = useSearchParams();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToiNaturalist, setUploadingToiNaturalist] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>('backend');
   const imageRef = useRef<HTMLImageElement>(null);
+
+  // Check for gpu query parameter
+  useEffect(() => {
+    const gpuParam = searchParams.get('gpu');
+    if (gpuParam === 'client-side') {
+      setDetectionMode('onnx-frontend');
+      console.log('🖥️ Client-side ONNX mode enabled via ?gpu=client-side');
+    } else if (gpuParam === 'server') {
+      setDetectionMode('backend-pytorch');
+      console.log('🎮 Backend PyTorch mode enabled via ?gpu=server');
+    } else {
+      setDetectionMode('backend');
+      console.log('☁️ Backend PyTorch-CPU mode (default, uses best.pt)');
+    }
+  }, [searchParams]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -51,31 +70,29 @@ export default function PredictionPage() {
     setIsLoading(true);
     
     try {
-      // Create form data with the image file
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      
-      // Call the backend API
-      const response = await fetch('http://localhost:8000/api/predict', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      // Use AnoleDetectionService with the selected detection mode
+      const modeLabel = detectionMode === 'onnx-frontend' 
+        ? 'client-side ONNX' 
+        : detectionMode === 'backend-pytorch'
+        ? 'backend PyTorch'
+        : 'backend PyTorch-CPU (best.pt)';
+      console.log(`Starting detection with ${modeLabel}...`);
+      const data = await AnoleDetectionService.detect(selectedFile, detectionMode);
       
       // Transform API response to match our DetectionResult interface
       const result: DetectionResult = {
         totalLizards: data.totalLizards,
-        predictions: data.predictions.map((pred: any) => ({
+        predictions: data.predictions.map((pred) => ({
           species: pred.species,
           scientificName: pred.scientificName,
           confidence: pred.confidence,
           count: pred.count,
-          box: pred.box // Include bounding box coordinates
+          box: pred.boundingBox ? [
+            pred.boundingBox[0],
+            pred.boundingBox[1],
+            pred.boundingBox[2],
+            pred.boundingBox[3]
+          ] : undefined
         })),
         imageUrl: previewUrl || undefined
       };
@@ -83,11 +100,12 @@ export default function PredictionPage() {
       // Debug: log bounding boxes
       console.log("Detection result:", result);
       console.log("Boxes:", result.predictions.map(p => p.box));
+      console.log("Processing time:", data.processingTime, "seconds");
       
       setDetectionResult(result);
     } catch (error) {
       console.error("Prediction failed:", error);
-      alert(`Prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure the backend server is running.`);
+      alert(`Prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}. ONNX inference failed and backend fallback failed.`);
     } finally {
       setIsLoading(false);
     }
@@ -133,7 +151,7 @@ export default function PredictionPage() {
       <h1>Anole Species Classification</h1>
       
       {/* Back to home link */}
-      <div style={{ marginBottom: "2rem" }}>
+      <div style={{ marginBottom: "2rem", display: "flex", alignItems: "center", gap: "1rem", justifyContent: "center" }}>
         <Link 
           to="/" 
           style={{ 
@@ -144,6 +162,19 @@ export default function PredictionPage() {
         >
           ← Back to Home
         </Link>
+        
+        {/* Detection mode indicator */}
+        <span style={{
+          padding: "4px 12px",
+          borderRadius: "12px",
+          fontSize: "12px",
+          fontWeight: "500",
+          backgroundColor: detectionMode === 'onnx-frontend' ? '#e3f2fd' : detectionMode === 'backend-pytorch' ? '#e8f5e9' : '#f5f5f5',
+          color: detectionMode === 'onnx-frontend' ? '#1976d2' : detectionMode === 'backend-pytorch' ? '#2e7d32' : '#666',
+          border: `1px solid ${detectionMode === 'onnx-frontend' ? '#90caf9' : detectionMode === 'backend-pytorch' ? '#66bb6a' : '#ddd'}`
+        }}>
+          {detectionMode === 'onnx-frontend' ? '🖥️ Client-side ONNX' : detectionMode === 'backend-pytorch' ? '🎮 Backend PyTorch' : '☁️ PyTorch CPU (best.pt)'}
+        </span>
       </div>
 
       {/* Species Information */}
