@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to backend (use /api prefix to avoid conflict with frontend route)
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       }
     }
