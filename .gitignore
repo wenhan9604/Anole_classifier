@@ -102,4 +102,5 @@ Spring_2025/ultralytics_runs/
 *.onnx
 Spring_2025/swin_transformer_base_lizard_v4/
 Spring_2025/yolov8x/
+Spring_2025/models/
 docs
