@@ -17,5 +17,10 @@ pydantic-settings>=2.6.0
 ultralytics>=8.3.38
 transformers>=4.46.3
 
+# Optional: ONNX Runtime for faster inference
+# Use onnxruntime-gpu if you have CUDA support
+onnxruntime>=1.16.0  # For CPU inference
+# onnxruntime-gpu>=1.16.0  # Uncomment for GPU inference
+
 # Utilities
 python-dotenv>=1.0.1

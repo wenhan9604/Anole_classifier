@@ -22,23 +22,26 @@ class ModelLoader:
     
     def get_pipeline(
         self,
-        yolo_model_path: str = "../Spring_2025/ultralytics_runs/detect/train_yolov8n_v2/weights/best.pt",
+        yolo_model_path: str = "../Spring_2025/yolov8x/weights/best.pt",
         swin_model_path: str = "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base",  # Using base model for now - update with your fine-tuned model
-        force_reload: bool = False
+        force_reload: bool = False,
+        use_onnx: bool = False
     ) -> AnolePipeline:
         """
         Get or initialize the pipeline
         
         Args:
-            yolo_model_path: Path to YOLO weights
-            swin_model_path: Path to Swin Transformer
+            yolo_model_path: Path to YOLO weights (.pt or .onnx)
+            swin_model_path: Path to Swin Transformer (directory or .onnx)
             force_reload: Force reload models even if cached
+            use_onnx: Whether to use ONNX models instead of PyTorch
             
         Returns:
             AnolePipeline instance
         """
         if self._pipeline is None or force_reload:
             logger.info("Initializing ML pipeline...")
+            logger.info(f"Using ONNX: {use_onnx}")
             
             # Validate paths
             yolo_path = Path(yolo_model_path)
@@ -50,7 +53,8 @@ class ModelLoader:
                 yolo_model_path=str(yolo_path),
                 swin_model_path=swin_model_path,
                 conf_threshold=0.25,
-                iou_threshold=0.5
+                iou_threshold=0.5,
+                use_onnx=use_onnx
             )
             
             logger.info("Pipeline initialized successfully")

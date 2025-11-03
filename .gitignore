@@ -100,3 +100,6 @@ Spring_2025/ultralytics_runs/
 *.safetensors
 *.h5
 *.onnx
+Spring_2025/swin_transformer_base_lizard_v4/
+Spring_2025/yolov8x/
+docs
