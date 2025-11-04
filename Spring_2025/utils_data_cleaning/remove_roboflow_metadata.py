@@ -65,9 +65,10 @@ def clean_txt_filenames(directory):
     print("Duplicate info saved to 'txt_duplicates_log.txt'.")
 
 if __name__ == "__main__":
-    folder_path = "C:/Users/wenha/Downloads/Anole_Annotate.v3-bark_anole.yolov8/train/images" 
+    folder_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\dataset_v3\florida_10000_cleaned\barkanole_2000\train\annotated\barkanole_anqi\anqi_new_bark_images"
     clean_jpg_filenames(folder_path)
 
 
-folder_path = "C:/Users/wenha/Downloads/Anole_Annotate.v3-bark_anole.yolov8/train/labels" 
-clean_txt_filenames(folder_path)
+
+    folder_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\dataset_v3\florida_10000_cleaned\barkanole_2000\train\annotated\barkanole_anqi\anqi_new_bark_labels"
+    clean_txt_filenames(folder_path)

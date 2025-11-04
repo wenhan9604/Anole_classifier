@@ -7,12 +7,17 @@ from sklearn.metrics import classification_report
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+import numpy as np
+import math
+import cv2 
 
 # --- Load models ---
-yolo_model = YOLO("./runs/detect/train_yolov8n_v2/weights/best.pt")
-swin_model = SwinForImageClassification.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
-processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
+yolo_model = YOLO("./runs/detect/yolov8x/weights/best.pt")
+swin_model = SwinForImageClassification.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
+processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
 swin_model.eval()
+
+print(f"Models loaded!")
 
 # --- Config ---
 dest_folder_path = "./inference"
@@ -21,7 +26,7 @@ label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
 IOU_THRESHOLD = 0.5
-CONF_THRESH = 0
+CONF_THRESH = 0.3
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
 #Create a unique output directory based on the time of each run
@@ -57,6 +62,11 @@ def compute_iou(boxA, boxB):
 y_true_all = []
 y_pred_all = []
 
+if not os.path.isdir(image_folder) or not os.path.isdir(label_folder):
+    
+    print(f"Application unable to find image/label folder! image_folder: {image_folder}")
+    exit()
+
 # --- Dataset loop ---
 for img_name in os.listdir(image_folder):
     if not img_name.endswith((".jpg", ".png")):
@@ -67,8 +77,14 @@ for img_name in os.listdir(image_folder):
     if not os.path.exists(label_path):
         continue
 
-    image = Image.open(image_path).convert("RGB")
-    img_w, img_h = image.size
+    # print(f"Loaded image file: {image_path} \n loaded label file: {label_path}")
+
+    # image = Image.open(image_path).convert("RGB")
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    img_w, img_h, _ = image.shape
+
+    # print(f"Image size: {image.shape}")
 
     # --- Load GT ---
     # Loads each instance of target found in image 
@@ -88,6 +104,8 @@ for img_name in os.listdir(image_folder):
     results = yolo_model(image)[0]
     boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
 
+    # print(f"Raw Detection result: {boxes}")
+
     # --- Confidence filtering ---
     boxes = boxes[boxes[:, 4] >= CONF_THRESH]
     boxes = boxes[boxes[:, 4].argsort(descending=True)]
@@ -100,7 +118,35 @@ for img_name in os.listdir(image_folder):
 
     for det in boxes:
         x1, y1, x2, y2, conf, _ = det.tolist()
-        crop = image.crop((x1, y1, x2, y2))
+
+        print(f"Individual Detection result: {det.tolist()}")
+
+        # RT-DETR returns BB coords that are beyond the image coord. Need to set it to be 0 < coord < 1.0
+        # x1 = max(0, x1)
+        # y1 = max(0, y1)
+        # x2 = min(1.0, x2)
+        # y2 = min(1.0, y2)
+
+        #Absolute coord because RT-DETR returns in normalized value
+        # x1 = x1 * img_w
+        # y1 = y1 * img_h
+        # x2 = x2 * img_w
+        # y2 = y2 * img_h
+
+        x1 = np.uint16(math.ceil(x1))
+        y1 = np.uint16(math.ceil(y1))
+        x2 = np.uint16(x2)
+        y2 = np.uint16(y2)
+
+        # print("tl_x")
+        # print(tl_x)
+
+        crop = image[y1:y2, x1:x2]
+
+        # crop = image.crop((x1, y1, x2, y2))
+
+        print(f"Cropped image dimensions: {crop.shape}")
+
         inputs = processor(images=crop, return_tensors="pt")
         with torch.no_grad():
             logits = swin_model(**inputs).logits
@@ -149,7 +195,7 @@ df.to_csv(results_path, index=False)
 print(f"Saved evaluation results to {results_path}")
 
 # --- Compute Precision, Recall, F1 ---
-print("\nClassification Report (IoU ≥ 0.5 matched):")
+print(f"\nClassification Report (IoU ≥ {IOU_THRESHOLD} matched):")
 print(classification_report(
     y_true_all,
     y_pred_all,
