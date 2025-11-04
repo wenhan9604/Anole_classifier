@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 export default function LandingPage() {
   return (
     <div className="container" style={{ textAlign: "center", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-      <h1 style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🦎 Florida Anole Classification</h1>
+      <h1 style={{ fontSize: "2.5rem", marginBottom: "1rem", color: "#2E7D32", fontWeight: "bold" }}>🦎 Florida Anole Classification</h1>
       <p style={{ fontSize: "1rem", marginBottom: "2rem", color: "#666" }}>
         Upload an image of an anole to classify its species and contribute to citizen science!
       </p>
@@ -34,14 +34,16 @@ export default function LandingPage() {
         
         {/* Features section with button */}
         <div style={{ 
-          backgroundColor: "#f8f9fa", 
+          backgroundColor: "#E8F5E9", 
           padding: "1.5rem", 
-          borderRadius: "8px", 
+          borderRadius: "12px", 
           textAlign: "left",
           maxWidth: "400px",
-          flex: "1 1 300px"
+          flex: "1 1 300px",
+          border: "2px solid #4CAF50",
+          boxShadow: "0 4px 12px rgba(76, 175, 80, 0.2)"
         }}>
-          <h3 style={{ textAlign: "center", marginBottom: "1rem", color: "#28a745", fontSize: "1.2rem" }}>
+          <h3 style={{ textAlign: "center", marginBottom: "1rem", color: "#2E7D32", fontSize: "1.4rem", fontWeight: "bold" }}>
             ✨ Features
           </h3>
           <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.9rem", lineHeight: "1.4", marginBottom: "1.5rem" }}>
@@ -58,29 +60,29 @@ export default function LandingPage() {
               to="/predict" 
               style={{
                 display: "inline-block",
-                padding: "10px 20px",
-                backgroundColor: "#28a745",
+                padding: "12px 24px",
+                backgroundColor: "#4CAF50",
                 color: "white",
                 textDecoration: "none",
-                borderRadius: "20px",
-                fontSize: "15px",
-                fontWeight: "500",
+                borderRadius: "25px",
+                fontSize: "16px",
+                fontWeight: "600",
                 transition: "all 0.2s ease",
-                boxShadow: "0 2px 8px rgba(40, 167, 69, 0.2)",
-                border: "2px solid transparent",
+                boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
+                border: "2px solid #2E7D32",
                 letterSpacing: "0.3px",
-                width: "140px",
-                maxWidth: "140px"
+                width: "160px",
+                maxWidth: "160px"
               }}
               onMouseOver={(e) => {
-                (e.target as HTMLElement).style.backgroundColor = "#218838";
-                (e.target as HTMLElement).style.transform = "translateY(-1px)";
-                (e.target as HTMLElement).style.boxShadow = "0 4px 12px rgba(40, 167, 69, 0.3)";
+                (e.target as HTMLElement).style.backgroundColor = "#45a049";
+                (e.target as HTMLElement).style.transform = "translateY(-2px)";
+                (e.target as HTMLElement).style.boxShadow = "0 6px 16px rgba(76, 175, 80, 0.4)";
               }}
               onMouseOut={(e) => {
-                (e.target as HTMLElement).style.backgroundColor = "#28a745";
+                (e.target as HTMLElement).style.backgroundColor = "#4CAF50";
                 (e.target as HTMLElement).style.transform = "translateY(0)";
-                (e.target as HTMLElement).style.boxShadow = "0 2px 8px rgba(40, 167, 69, 0.2)";
+                (e.target as HTMLElement).style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.3)";
               }}
             >
               🔍 Classify
