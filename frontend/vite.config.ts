@@ -5,6 +5,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true, // Allow external access
+    allowedHosts: [
+      'knotty-bee-unlibidinously.ngrok-free.dev',
+      '.ngrok-free.dev', // Allow all ngrok subdomains
+      '.ngrok.io', // Allow ngrok.io domains too
+      '.serveo.net', // Allow serveo.net domains
+    ],
     headers: {
       // Required for ONNX Runtime WASM
       // Using require-corp instead of credentialless for better compatibility

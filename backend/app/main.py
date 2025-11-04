@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,https://lizard-class.serveo.net,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok-free.dev")
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
