@@ -46,8 +46,7 @@ def delete_duplicates(reference_folder_path, edited_folder_path, file_extension=
     print(f"\nLog written to '{log_filename}'.")
 
 if __name__ == "__main__":
-    ref_folder = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/wenhan_bark_anole/test_labels - Copy"
-    edited_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/florida_10000_cleaned_verified/bark_anole_2000_verified/wenhan_bark_anole/test_labels"
-    # edited_folder_path = "../Dataset/YOLO_training/dataset_v3/original_cleaned/sent_for_cleaning/raw_dataset_unused/BarkAnole_unused/"
-
-    delete_duplicates(ref_folder, edited_folder_path, file_extension="txt")
+    edited_folder_path = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\dataset_v3\sent_for_cleaning\raw_dataset_unused\BarkAnole_unused"
+    ref_folder  = r"C:\Projects\OMSCS\Lizard_Classification\Anole_classifier\Dataset\YOLO_training\dataset_v3\florida_10000_cleaned\barkanole_2000\train\images_final"
+    
+    delete_duplicates(ref_folder, edited_folder_path, file_extension="jpg")
