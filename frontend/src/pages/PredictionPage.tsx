@@ -148,16 +148,17 @@ export default function PredictionPage() {
 
   return (
     <div className="container" style={{ textAlign: "center" }}>
-      <h1>Anole Species Classification</h1>
+      <h1 style={{ color: "#2E7D32", fontSize: "2.5rem", marginBottom: "0.5rem" }}>🦎 Anole Species Classification</h1>
       
       {/* Back to home link */}
       <div style={{ marginBottom: "2rem", display: "flex", alignItems: "center", gap: "1rem", justifyContent: "center" }}>
         <Link 
           to="/" 
           style={{ 
-            color: "#007bff", 
+            color: "#2E7D32", 
             textDecoration: "none",
-            fontSize: "14px"
+            fontSize: "14px",
+            fontWeight: "500"
           }}
         >
           ← Back to Home
@@ -179,181 +180,303 @@ export default function PredictionPage() {
 
       {/* Species Information */}
       <div className="species-info">
-        <h3 style={{ margin: "0 0 0.5rem 0" }}>Florida Anole Species</h3>
-        <p style={{ margin: 0, fontSize: "0.9rem" }}>
+        <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.3rem" }}>Florida Anole Species</h3>
+        <p style={{ margin: 0, fontSize: "1rem", lineHeight: "1.5" }}>
           This app can identify 5 species: Green Anole, Brown Anole, Crested Anole, Knight Anole, and Bark Anole
         </p>
       </div>
 
-      {/* File upload section */}
-      <div style={{ marginBottom: "2rem" }}>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          className="upload-input"
-          style={{
-            marginBottom: "1rem",
-            width: "100%",
-            maxWidth: "400px"
-          }}
-        />
-        
-        {previewUrl && (
-          <div style={{ marginBottom: "1rem", position: "relative", display: "inline-block" }}>
-            <img 
-              ref={imageRef}
-              src={previewUrl} 
-              alt="Preview" 
-              className="image-preview"
-              style={{ 
-                maxWidth: "300px", 
-                height: "auto", 
-                borderRadius: "6px",
-                border: "2px solid #ddd",
-                display: "block"
-              }} 
-              onLoad={(e) => {
-                const img = e.currentTarget;
-                setImageDimensions({
-                  width: img.naturalWidth,
-                  height: img.naturalHeight
-                });
-              }}
-            />
-            {/* Draw bounding boxes overlay - matching pipeline_evaluation.py coordinate system */}
-            {(() => {
-              if (!detectionResult || !detectionResult.predictions || !imageDimensions || !imageRef.current) {
-                return null;
-              }
+      {/* File upload section - redesigned */}
+      <div style={{ 
+        marginBottom: "2rem",
+        maxWidth: "600px",
+        margin: "0 auto 2rem auto",
+        padding: "0 1rem"
+      }}>
+        {/* Upload card */}
+        <div style={{
+          backgroundColor: "#f8f9fa",
+          padding: "1.5rem",
+          borderRadius: "12px",
+          border: previewUrl ? "2px solid #4CAF50" : "2px dashed #4CAF50",
+          boxShadow: previewUrl ? "0 4px 12px rgba(76, 175, 80, 0.2)" : "none",
+          transition: "all 0.3s ease"
+        }}>
+          {!previewUrl ? (
+            /* Upload area - no image selected */
+            <div style={{ textAlign: "center" }}>
+              <label
+                htmlFor="file-upload"
+                style={{
+                  display: "block",
+                  cursor: "pointer",
+                  padding: "2rem 1rem",
+                  borderRadius: "8px",
+                  backgroundColor: "#E8F5E9",
+                  border: "2px dashed #4CAF50",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#C8E6C9";
+                  e.currentTarget.style.transform = "scale(1.02)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#E8F5E9";
+                  e.currentTarget.style.transform = "scale(1)";
+                }}
+              >
+                <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📸</div>
+                <div style={{ 
+                  fontSize: "1.1rem", 
+                  fontWeight: "600", 
+                  color: "#2E7D32",
+                  marginBottom: "0.5rem"
+                }}>
+                  Choose an Image
+                </div>
+                <div style={{ 
+                  fontSize: "0.9rem", 
+                  color: "#666",
+                  marginBottom: "1rem"
+                }}>
+                  Tap to select a photo from your device
+                </div>
+                <input
+                  id="file-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  style={{ display: "none" }}
+                />
+              </label>
+            </div>
+          ) : (
+            /* Image preview area */
+            <div style={{ textAlign: "center" }}>
+              <div style={{ 
+                position: "relative", 
+                display: "inline-block",
+                marginBottom: "1rem"
+              }}>
+                <img 
+                  ref={imageRef}
+                  src={previewUrl} 
+                  alt="Preview" 
+                  className="image-preview"
+                  style={{ 
+                    maxWidth: "100%",
+                    width: "auto",
+                    height: "auto",
+                    maxHeight: "400px",
+                    borderRadius: "8px",
+                    border: "2px solid #4CAF50",
+                    display: "block",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+                  }} 
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setImageDimensions({
+                      width: img.naturalWidth,
+                      height: img.naturalHeight
+                    });
+                  }}
+                />
+                {/* Draw bounding boxes overlay - matching pipeline_evaluation.py coordinate system */}
+                {(() => {
+                  if (!detectionResult || !detectionResult.predictions || !imageDimensions || !imageRef.current) {
+                    return null;
+                  }
+                  
+                  const boxesWithCoords = detectionResult.predictions.filter(p => p.box && Array.isArray(p.box) && p.box.length === 4);
+                  console.log("Rendering boxes:", boxesWithCoords.length, "boxes found");
+                  console.log("Image dimensions:", imageDimensions);
+                  console.log("Display dimensions:", imageRef.current.clientWidth, imageRef.current.clientHeight);
+                  
+                  if (boxesWithCoords.length === 0) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div 
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: `${imageRef.current.clientWidth}px`,
+                        height: `${imageRef.current.clientHeight}px`,
+                        pointerEvents: "none",
+                        overflow: "visible"
+                      }}
+                    >
+                      {boxesWithCoords.map((prediction, idx) => {
+                        if (!prediction.box || prediction.box.length !== 4 || !imageRef.current) return null;
+                        
+                        // Get actual image dimensions (what YOLO used)
+                        const imgNaturalWidth = imageDimensions.width;
+                        const imgNaturalHeight = imageDimensions.height;
+                        
+                        // Get displayed image dimensions
+                        const displayWidth = imageRef.current.clientWidth;
+                        const displayHeight = imageRef.current.clientHeight;
+                        
+                        // Calculate scale factors (matching pipeline_evaluation.py: boxes are in absolute pixels)
+                        // YOLO returns coordinates in original image pixel space
+                        const scaleX = displayWidth / imgNaturalWidth;
+                        const scaleY = displayHeight / imgNaturalHeight;
+                        
+                        // Extract bounding box coordinates [x1, y1, x2, y2] from pipeline_evaluation.py format
+                        const [x1, y1, x2, y2] = prediction.box;
+                        
+                        // Scale coordinates to displayed image size
+                        const left = x1 * scaleX;
+                        const top = y1 * scaleY;
+                        const width = (x2 - x1) * scaleX;
+                        const height = (y2 - y1) * scaleY;
+                        
+                        console.log(`Box ${idx}: [${x1}, ${y1}, ${x2}, ${y2}] -> scaled: [${left}, ${top}, ${width}, ${height}]`);
+                        
+                        // Color based on confidence (green=high, yellow=medium, red=low)
+                        const color = prediction.confidence > 0.8 ? "#28a745" : prediction.confidence > 0.6 ? "#ffc107" : "#dc3545";
+                        
+                        return (
+                          <div key={idx}>
+                            {/* Bounding box rectangle */}
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: `${left}px`,
+                                top: `${top}px`,
+                                width: `${width}px`,
+                                height: `${height}px`,
+                                border: `3px solid ${color}`,
+                                borderRadius: "4px",
+                                boxSizing: "border-box"
+                              }}
+                            />
+                            {/* Label above box */}
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: `${left}px`,
+                                top: `${Math.max(0, top - 25)}px`,
+                                backgroundColor: color,
+                                color: "white",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                                whiteSpace: "nowrap",
+                                pointerEvents: "none",
+                                zIndex: 10
+                              }}
+                            >
+                              {prediction.species} ({(prediction.confidence * 100).toFixed(1)}%)
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
               
-              const boxesWithCoords = detectionResult.predictions.filter(p => p.box && Array.isArray(p.box) && p.box.length === 4);
-              console.log("Rendering boxes:", boxesWithCoords.length, "boxes found");
-              console.log("Image dimensions:", imageDimensions);
-              console.log("Display dimensions:", imageRef.current.clientWidth, imageRef.current.clientHeight);
-              
-              if (boxesWithCoords.length === 0) {
-                return null;
-              }
-              
-              return (
-                <div 
+              {/* Action buttons */}
+              <div 
+                className="upload-actions"
+                style={{ 
+                  display: "flex", 
+                  gap: "0.75rem", 
+                  justifyContent: "center",
+                  flexWrap: "wrap"
+                }}
+              >
+                <label
+                  htmlFor="file-upload"
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: `${imageRef.current.clientWidth}px`,
-                    height: `${imageRef.current.clientHeight}px`,
-                    pointerEvents: "none",
-                    overflow: "visible"
+                    display: "inline-block",
+                    padding: "10px 20px",
+                    backgroundColor: "#E8F5E9",
+                    color: "#2E7D32",
+                    border: "2px solid #4CAF50",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    textAlign: "center"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#C8E6C9";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#E8F5E9";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
-                  {boxesWithCoords.map((prediction, idx) => {
-                    if (!prediction.box || prediction.box.length !== 4 || !imageRef.current) return null;
-                    
-                    // Get actual image dimensions (what YOLO used)
-                    const imgNaturalWidth = imageDimensions.width;
-                    const imgNaturalHeight = imageDimensions.height;
-                    
-                    // Get displayed image dimensions
-                    const displayWidth = imageRef.current.clientWidth;
-                    const displayHeight = imageRef.current.clientHeight;
-                    
-                    // Calculate scale factors (matching pipeline_evaluation.py: boxes are in absolute pixels)
-                    // YOLO returns coordinates in original image pixel space
-                    const scaleX = displayWidth / imgNaturalWidth;
-                    const scaleY = displayHeight / imgNaturalHeight;
-                    
-                    // Extract bounding box coordinates [x1, y1, x2, y2] from pipeline_evaluation.py format
-                    const [x1, y1, x2, y2] = prediction.box;
-                    
-                    // Scale coordinates to displayed image size
-                    const left = x1 * scaleX;
-                    const top = y1 * scaleY;
-                    const width = (x2 - x1) * scaleX;
-                    const height = (y2 - y1) * scaleY;
-                    
-                    console.log(`Box ${idx}: [${x1}, ${y1}, ${x2}, ${y2}] -> scaled: [${left}, ${top}, ${width}, ${height}]`);
-                    
-                    // Color based on confidence (green=high, yellow=medium, red=low)
-                    const color = prediction.confidence > 0.8 ? "#28a745" : prediction.confidence > 0.6 ? "#ffc107" : "#dc3545";
-                    
-                    return (
-                      <div key={idx}>
-                        {/* Bounding box rectangle */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: `${left}px`,
-                            top: `${top}px`,
-                            width: `${width}px`,
-                            height: `${height}px`,
-                            border: `3px solid ${color}`,
-                            borderRadius: "4px",
-                            boxSizing: "border-box"
-                          }}
-                        />
-                        {/* Label above box */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: `${left}px`,
-                            top: `${Math.max(0, top - 25)}px`,
-                            backgroundColor: color,
-                            color: "white",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            fontWeight: "bold",
-                            whiteSpace: "nowrap",
-                            pointerEvents: "none",
-                            zIndex: 10
-                          }}
-                        >
-                          {prediction.species} ({(prediction.confidence * 100).toFixed(1)}%)
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        )}
-        
-        <button
-          onClick={handlePredict}
-          disabled={!selectedFile || isLoading}
-          className="button"
-          style={{
-            padding: "12px 24px",
-            backgroundColor: selectedFile && !isLoading ? "#28a745" : "#6c757d",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            fontSize: "16px",
-            cursor: selectedFile && !isLoading ? "pointer" : "not-allowed",
-            marginLeft: "20px"
-          }}
-        >
-          {isLoading ? (
-            <>
-              <div style={{
-                width: "16px",
-                height: "16px",
-                border: "2px solid #ffffff",
-                borderTop: "2px solid transparent",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-                display: "inline-block",
-                marginRight: "8px"
-              }} />
-              Classifying...
-            </>
-          ) : (
-            "🔍 Classify Species"
+                  Change Image
+                </label>
+                <input
+                  id="file-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  style={{ display: "none" }}
+                />
+                
+                <button
+                  onClick={handlePredict}
+                  disabled={!selectedFile || isLoading}
+                  className="button"
+                  style={{
+                    padding: "10px 24px",
+                    backgroundColor: selectedFile && !isLoading ? "#4CAF50" : "#9e9e9e",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    cursor: selectedFile && !isLoading ? "pointer" : "not-allowed",
+                    transition: "all 0.2s ease",
+                    boxShadow: selectedFile && !isLoading ? "0 4px 12px rgba(76, 175, 80, 0.3)" : "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedFile && !isLoading) {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(76, 175, 80, 0.4)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedFile && !isLoading) {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.3)";
+                    }
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <div style={{
+                        width: "16px",
+                        height: "16px",
+                        border: "2px solid #ffffff",
+                        borderTop: "2px solid transparent",
+                        borderRadius: "50%",
+                        animation: "spin 1s linear infinite",
+                        display: "inline-block"
+                      }} />
+                      Classifying...
+                    </>
+                  ) : (
+                    <>🔍 Classify Species</>
+                  )}
+                </button>
+              </div>
+            </div>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Detection Results */}
@@ -361,14 +484,15 @@ export default function PredictionPage() {
         <div className="result-card" style={{
           backgroundColor: "#f8f9fa",
           padding: "1.5rem",
-          borderRadius: "8px",
-          border: "1px solid #dee2e6",
+          borderRadius: "12px",
+          border: "2px solid #4CAF50",
           maxWidth: "600px",
           margin: "0 auto",
-          textAlign: "left"
+          textAlign: "left",
+          boxShadow: "0 4px 12px rgba(76, 175, 80, 0.2)"
         }}>
-          <h3 style={{ textAlign: "center", marginBottom: "1rem", color: "#28a745" }}>
-            🦎 Detection Results
+          <h3 style={{ textAlign: "center", marginBottom: "1rem", color: "#2E7D32", fontSize: "1.5rem" }}>
+            Detection Results
           </h3>
           
           <div style={{ marginBottom: "1rem", textAlign: "center" }}>
@@ -380,8 +504,9 @@ export default function PredictionPage() {
               backgroundColor: "white",
               padding: "1rem",
               marginBottom: "0.5rem",
-              borderRadius: "6px",
-              border: "1px solid #e9ecef"
+              borderRadius: "8px",
+              border: "2px solid #E8F5E9",
+              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
                 <h4 style={{ margin: 0, color: "#495057", flex: "1", minWidth: "200px" }}>
@@ -437,7 +562,7 @@ export default function PredictionPage() {
                 </>
               ) : (
                 <>
-                  📊 Upload to iNaturalist
+                  Upload to iNaturalist
                 </>
               )}
             </button>

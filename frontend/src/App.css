@@ -42,11 +42,36 @@ body {
     width: 100%;
     padding: 14px 24px !important;
     font-size: 16px !important;
+    min-height: 48px; /* Larger touch target for mobile */
   }
   
   .image-preview {
     max-width: 100% !important;
     height: auto !important;
+    max-height: 60vh !important; /* Prevent image from taking too much space on mobile */
+  }
+  
+  /* Mobile-specific upload card styling */
+  h1 {
+    font-size: 1.8rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  /* Make upload action buttons full width on mobile */
+  .upload-actions {
+    flex-direction: column !important;
+  }
+  
+  .upload-actions button,
+  .upload-actions label {
+    width: 100% !important;
+    margin: 0 !important;
+    min-height: 48px !important; /* Larger touch target */
+  }
+  
+  /* Upload card padding on mobile */
+  div[style*="padding: \"1.5rem\""] {
+    padding: 1rem !important;
   }
 }
 
@@ -100,13 +125,13 @@ body {
 }
 
 .upload-input:hover {
-  border-color: #007bff;
+  border-color: #4CAF50;
 }
 
 .upload-input:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
 }
 
 /* Confidence score colors */
@@ -127,11 +152,12 @@ body {
 
 /* Species information cards */
 .species-info {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
   color: white;
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 12px;
   margin: 1rem 0;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 }
 
 /* iNaturalist integration styling */
@@ -206,7 +232,7 @@ body {
 button:focus,
 input:focus,
 a:focus {
-  outline: 2px solid #007bff;
+  outline: 2px solid #4CAF50;
   outline-offset: 2px;
 }
 
