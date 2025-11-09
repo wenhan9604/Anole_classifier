@@ -23,11 +23,11 @@ from ultralytics import YOLO
 NUM_CLASSES = 5
 MISSED_CLASS_ID = NUM_CLASSES  # Used when detection fails
 CLASS_NAMES = [
-    "Green Anole",
+    "Bark Anole",
     "Brown Anole",
     "Crested Anole",
+    "Green Anole",
     "Knight Anole",
-    "Bark Anole",
 ]
 
 
@@ -267,7 +267,12 @@ def evaluate(args: argparse.Namespace) -> None:
             f"(0 – {len(gradcam_model.model.swin.encoder.layers) - 1})."
         )
     target_stage = gradcam_model.model.swin.encoder.layers[args.gradcam_stage_index]
-    target_layer = target_stage.blocks[-1].layernorm_before
+    # Optionally adjust target layer to use the attention output for more focused CAMs
+    if hasattr(target_stage.blocks[-1], "layernorm_before"):
+        target_layer = target_stage.blocks[-1].layernorm_before
+    else:
+        # Fallback in case architecture differs
+        target_layer = target_stage.blocks[-1]
 
     y_true_all: List[int] = []
     y_pred_all: List[int] = []
