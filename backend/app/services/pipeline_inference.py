@@ -41,8 +41,9 @@ def _get_model_paths() -> Tuple[str, str]:
     else:
         # Priority 2: Check common YOLO model locations
         candidates = [
-            os.path.join("..", "Spring_2025", "models", "yolov8x", "best.pt"),  # YOLOv8x trained model (unified location)
-            os.path.join("..", "Spring_2025", "yolov8x", "weights", "best.pt"),  # YOLOv8x trained model (legacy)
+            os.path.join("..", "Spring_2025", "models", "train22_yolov8x_dataset_v4", "weights", "best.pt"),
+            os.path.join("..", "Spring_2025", "models", "yolov8x", "best.pt"),  # YOLOv8x trained model (unified legacy location)
+            os.path.join("..", "Spring_2025", "yolov8x", "weights", "best.pt"),  # Alternative legacy location
             os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),
             os.path.join("..", "Spring_2025", "runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),
             os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n", "weights", "best.pt"),
@@ -55,7 +56,7 @@ def _get_model_paths() -> Tuple[str, str]:
                 break
         # Priority 3: Default fallback path
         if det is None:
-            det = os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n", "weights", "best.pt")
+            det = os.path.join("..", "Spring_2025", "models", "train22_yolov8x_dataset_v4", "weights", "best.pt")
     # Classification model: Check env var first, then try local folders
     clf_env = os.getenv("CLASSIFICATION_MODEL_ID")
     if clf_env:
@@ -163,72 +164,12 @@ def _compute_iou(boxA: List[float], boxB: List[float]) -> float:
     return interArea / float(boxAArea + boxBArea - interArea)
 
 
-def _deduplicate_overlapping_detections(predictions: List[Dict[str, Any]], iou_threshold: float = 0.25) -> List[Dict[str, Any]]:
+def _deduplicate_overlapping_detections(predictions: List[Dict[str, Any]], iou_threshold: float = 0.5) -> List[Dict[str, Any]]:
     """
-    Remove duplicate detections that overlap significantly (same lizard detected multiple times).
-    Uses IoU threshold and center distance to group detections.
-    Groups overlapping detections and keeps the one with highest confidence.
+    Previously used to merge overlapping detections; now acts as identity so we keep
+    all YOLO outputs. Retained for compatibility if future tuning is needed.
     """
-    if not predictions or len(predictions) == 1:
-        return predictions
-    
-    # Sort by confidence descending (highest first) - keep highest confidence when merging
-    sorted_preds = sorted(predictions, key=lambda x: x.get("detectionConf", 0), reverse=True)
-    
-    # Group overlapping detections using Union-Find approach
-    groups = []
-    
-    for pred in sorted_preds:
-        pred_box = pred["box"]
-        pred_center_x = (pred_box[0] + pred_box[2]) / 2
-        pred_center_y = (pred_box[1] + pred_box[3]) / 2
-        pred_size = ((pred_box[2] - pred_box[0]) + (pred_box[3] - pred_box[1])) / 2
-        
-        assigned_to_group = False
-        
-        # Check if this box overlaps with any existing group
-        for group_idx, group in enumerate(groups):
-            # Check overlap with any box in the group
-            for group_pred in group:
-                group_box = group_pred["box"]
-                iou = _compute_iou(pred_box, group_box)
-                
-                # Also check center distance as an additional criterion
-                group_center_x = (group_box[0] + group_box[2]) / 2
-                group_center_y = (group_box[1] + group_box[3]) / 2
-                center_dist = ((pred_center_x - group_center_x)**2 + (pred_center_y - group_center_y)**2)**0.5
-                group_size = ((group_box[2] - group_box[0]) + (group_box[3] - group_box[1])) / 2
-                avg_size = (pred_size + group_size) / 2
-                
-                # If IoU >= threshold OR centers are very close (< 50% of avg box size), merge
-                center_close = avg_size > 0 and (center_dist / avg_size) < 0.5
-                
-                logger.info(f"  Comparing: IoU={iou:.3f}, center_dist={center_dist:.1f}, avg_size={avg_size:.1f}, center_close={center_close}, merge={iou >= iou_threshold or center_close}")
-                
-                if iou >= iou_threshold or center_close:
-                    logger.info(f"  -> Merging into group {group_idx}")
-                    group.append(pred)
-                    assigned_to_group = True
-                    break
-            
-            if assigned_to_group:
-                break
-        
-        # If not overlapping with any group, start a new group
-        if not assigned_to_group:
-            logger.info(f"  -> Creating new group {len(groups)}")
-            groups.append([pred])
-    
-    logger.info(f"Deduplication: {len(groups)} groups found from {len(sorted_preds)} detections")
-    
-    # From each group, keep only the highest confidence detection
-    unique_preds = []
-    for group_idx, group in enumerate(groups):
-        # Group is already sorted by confidence (since sorted_preds was), so take first
-        logger.info(f"  Group {group_idx}: {len(group)} detections, keeping highest conf={group[0].get('detectionConf', 0):.3f}")
-        unique_preds.append(group[0])
-    
-    return unique_preds
+    return predictions
 
 
 def _class_mapping() -> Dict[int, Tuple[str, str]]:
@@ -245,7 +186,12 @@ def _class_mapping() -> Dict[int, Tuple[str, str]]:
     }
 
 
-def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: int | None = 5, temperature: float = 2.0) -> Dict[str, Any]:
+def predict_image_bytes(
+    image_bytes: bytes,
+    conf_threshold: float = 0.3,
+    top_k: int | None = 5,
+    temperature: float = 2.0,
+) -> Dict[str, Any]:
     """
     Run detection + classification on a single image and return a structure
     compatible with the frontend's expected result format.
@@ -276,16 +222,22 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
     # No explicit conf/iou parameters - use YOLO's defaults
     img_size = image.size
     logger.info(f"Image size: {img_size} (width x height)")
-    results = _yolo(image)[0]
+    # Always call YOLO with Bree's thresholds so we keep close detections
+    results = _yolo(
+        image,
+        conf=max(min(conf_threshold if conf_threshold is not None else 0.3, 1.0), 0.0),
+        iou=0.2,
+        max_det=max(int(top_k) if top_k is not None else 5, 1),
+    )[0]
     boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
     logger.info(f"YOLO detected {len(boxes)} boxes")
 
     # Confidence filtering - exact match: boxes[:, 4] >= CONF_THRESH (CONF_THRESH = 0)
-    boxes = boxes[boxes[:, 4] >= conf_threshold]
+    boxes = boxes[boxes[:, 4] >= (conf_threshold if conf_threshold is not None else 0.3)]
     boxes = boxes[boxes[:, 4].argsort(descending=True)]  # Sort by confidence (highest first)
     
-    # Limit to top_k - exact match: TOP_K = 5
-    if top_k is not None:
+    # Limit to top_k after filtering (secondary safeguard)
+    if top_k is not None and boxes.shape[0] > top_k:
         boxes = boxes[:top_k]
 
     class_map = _class_mapping()
@@ -333,6 +285,31 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
             probs = _softmax(logits, temperature=temperature)
         cls_idx = int(max(range(len(probs)), key=lambda i: probs[i]))
         cls_conf = float(probs[cls_idx])
+
+        # Prepare alternate class confidences (top 3 others)
+        alternate_confidences: List[Dict[str, Any]] = []
+        sorted_indices = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+        if cls_conf < 0.999:  # Only include when not essentially certain
+            remaining_mass = max(1.0 - cls_conf, 1e-6)
+            for alt_idx in sorted_indices:
+                if alt_idx == cls_idx:
+                    continue
+                alt_conf = float(probs[alt_idx])
+                # Skip negligible probabilities to avoid noise
+                if alt_conf <= 0.0:
+                    continue
+                alt_species, alt_sci = class_map.get(alt_idx, (f"Class {alt_idx}", f"Class {alt_idx}"))
+                alternate_confidences.append(
+                    {
+                        "classIndex": alt_idx,
+                        "species": alt_species,
+                        "scientificName": alt_sci,
+                        "confidence": alt_conf,
+                        "relativeConfidence": alt_conf / remaining_mass,
+                    }
+                )
+                if len(alternate_confidences) >= 3:
+                    break
         
         # Log probability distribution for debugging
         logger.info(f"Classification probabilities: {[f'{p:.4f}' for p in probs]}")
@@ -348,6 +325,7 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
                 "box": [float(x1), float(y1), float(x2), float(y2)],
                 "detectionConf": float(det_conf),
                 "classIndex": cls_idx,
+                "alternateConfidences": alternate_confidences if alternate_confidences else None,
             }
         )
 

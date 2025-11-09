@@ -14,12 +14,21 @@ import type { DetectionMode } from "../services/AnoleDetectionService";
 //   { name: "Bark Anole", scientific: "Anolis distichus", common: "Bark Anole" }
 // ];
 
+interface AlternateConfidence {
+  classIndex: number;
+  species: string;
+  scientificName: string;
+  confidence: number;
+  relativeConfidence: number;
+}
+
 interface PredictionResult {
   species: string;
   scientificName: string;
   confidence: number;
   count: number;
   box?: [number, number, number, number]; // [x1, y1, x2, y2] bounding box coordinates
+  altConfidences?: AlternateConfidence[];
 }
 
 interface DetectionResult {
@@ -82,18 +91,45 @@ export default function PredictionPage() {
       // Transform API response to match our DetectionResult interface
       const result: DetectionResult = {
         totalLizards: data.totalLizards,
-        predictions: data.predictions.map((pred) => ({
+        predictions: data.predictions.map((pred: any) => {
+          const box = pred.boundingBox ?? pred.box;
+          const altConfidences = Array.isArray(pred.alternateConfidences)
+            ? (pred.alternateConfidences as any[])
+                .filter(
+                  (alt) =>
+                    alt &&
+                    typeof alt.confidence === "number" &&
+                    typeof alt.species === "string"
+                )
+                .map((alt) => ({
+                  classIndex: typeof alt.classIndex === "number" ? alt.classIndex : -1,
+                  species: alt.species,
+                  scientificName: alt.scientificName ?? "",
+                  confidence: alt.confidence,
+                  relativeConfidence:
+                    typeof alt.relativeConfidence === "number"
+                      ? alt.relativeConfidence
+                      : (() => {
+                          const remaining = 1 - (typeof pred.confidence === "number" ? pred.confidence : 0);
+                          return remaining > 0 ? (alt.confidence ?? 0) / remaining : 0;
+                        })(),
+                }))
+            : undefined;
+
+          return {
           species: pred.species,
           scientificName: pred.scientificName,
           confidence: pred.confidence,
           count: pred.count,
-          box: pred.boundingBox ? [
-            pred.boundingBox[0],
-            pred.boundingBox[1],
-            pred.boundingBox[2],
-            pred.boundingBox[3]
-          ] : undefined
-        })),
+            box: Array.isArray(box) && box.length === 4 ? [
+              box[0],
+              box[1],
+              box[2],
+              box[3]
+            ] : undefined,
+            altConfidences,
+          };
+        }),
         imageUrl: previewUrl || undefined
       };
       
@@ -534,6 +570,19 @@ export default function PredictionPage() {
                   />
                 </div>
               </div>
+              
+              {prediction.altConfidences && prediction.altConfidences.length > 0 && prediction.confidence < 0.999 && (
+                <div style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "#495057" }}>
+                  <strong>Other possibilities:&nbsp;</strong>
+                  {prediction.altConfidences
+                    .slice(0, 3)
+                    .map((alt) => {
+                      const overallPercent = Math.max(alt.confidence * 100, 0);
+                      return `${overallPercent.toFixed(1)}% ${alt.species}`;
+                    })
+                    .join(", ")}
+                </div>
+              )}
               
               <p style={{ margin: 0, fontSize: "0.9rem", color: "#6c757d" }}>
                 Count: {prediction.count} individual{prediction.count > 1 ? 's' : ''}
