@@ -78,6 +78,40 @@ def _load_models() -> None:
     _swin.eval()
 
 
+def _get_yolo_infer_kwargs() -> Dict[str, Any]:
+    """Build YOLO inference kwargs with configurable NMS IoU.
+
+    Env vars:
+    - YOLO_IOU: float (default 0.85) — higher keeps more overlapping boxes
+    - YOLO_CONF: float (optional) — detector confidence threshold
+    - YOLO_MAX_DET: int (optional) — maximum detections
+    """
+    # IoU default tuned to keep nearby boxes
+    iou_str = os.getenv("YOLO_IOU", "0.85")
+    try:
+        iou = float(iou_str)
+    except Exception:
+        iou = 0.85
+
+    kwargs: Dict[str, Any] = {"iou": iou}
+
+    conf_str = os.getenv("YOLO_CONF")
+    if conf_str:
+        try:
+            kwargs["conf"] = float(conf_str)
+        except Exception:
+            pass
+
+    max_det_str = os.getenv("YOLO_MAX_DET")
+    if max_det_str:
+        try:
+            kwargs["max_det"] = int(max_det_str)
+        except Exception:
+            pass
+
+    return kwargs
+
+
 def _softmax(logits) -> List[float]:
     import math
 
@@ -117,8 +151,9 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
 
     image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-    # Detection
-    results = _yolo(image)[0]
+    # Detection (configurable NMS IoU to keep nearby boxes)
+    yolo_kwargs = _get_yolo_infer_kwargs()
+    results = _yolo(image, **yolo_kwargs)[0]
     boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
 
     # Confidence filtering
