@@ -1,6 +1,14 @@
 import { API_URL } from './config';
 import { OnnxDetectionService } from './OnnxDetectionService';
 
+export interface AlternateConfidence {
+  classIndex: number;
+  species: string;
+  scientificName: string;
+  confidence: number;
+  relativeConfidence: number;
+}
+
 export interface AnolePrediction {
   species: string;
   scientificName: string;
@@ -8,6 +16,7 @@ export interface AnolePrediction {
   count: number;
   boundingBox?: number[]; // [x1, y1, x2, y2]
   detectionConfidence?: number;
+  alternateConfidences?: AlternateConfidence[];
 }
 
 export interface AnoleDetectionResult {
@@ -131,7 +140,8 @@ export class AnoleDetectionService {
           confidence: classification.score,
           count: 1,
           boundingBox: [x, y, x + w, y + h],
-          detectionConfidence: detection.score
+          detectionConfidence: detection.score,
+          alternateConfidences: (classification as any).alternateConfidences,
         });
       }
       

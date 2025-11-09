@@ -4,6 +4,19 @@ Pydantic schemas for API request/response validation
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+
+class AlternateConfidence(BaseModel):
+    """Alternate classification confidence for other species"""
+    classIndex: int = Field(..., ge=0)
+    species: str = Field(..., description="Alternate species name")
+    scientificName: str = Field(..., description="Alternate species scientific name")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Probability for this alternate class")
+    relativeConfidence: float = Field(
+        ...,
+        ge=0.0,
+        description="Alternate probability relative to the primary class (alternate / primary)",
+    )
+
 class PredictionResult(BaseModel):
     """Individual prediction result for one detected lizard"""
     species: str = Field(..., description="Common name of the species")
@@ -12,6 +25,10 @@ class PredictionResult(BaseModel):
     count: int = Field(default=1, description="Count of this species in detection")
     boundingBox: List[float] = Field(..., description="Bounding box [x1, y1, x2, y2]")
     detectionConfidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Detection confidence (0-1)")
+    alternateConfidences: Optional[List[AlternateConfidence]] = Field(
+        default=None,
+        description="Optional list of alternate class confidences when primary confidence < 100%",
+    )
 
 class PredictionResponse(BaseModel):
     """Response from prediction endpoint"""

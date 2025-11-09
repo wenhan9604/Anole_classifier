@@ -9,6 +9,14 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+class AlternateConfidence(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    classIndex: int = Field(alias="classIndex")
+    species: str
+    scientific_name: str = Field(alias="scientificName")
+    confidence: float
+
+
 class Prediction(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     species: str
@@ -16,6 +24,9 @@ class Prediction(BaseModel):
     confidence: float
     count: int
     box: Optional[List[float]] = None  # [x1, y1, x2, y2] bounding box coordinates
+    alternate_confidences: Optional[List[AlternateConfidence]] = Field(
+        default=None, alias="alternateConfidences"
+    )
 
 
 class DetectionResult(BaseModel):
@@ -93,6 +104,7 @@ async def predict(
                 confidence=float(p["confidence"]),
                 count=int(p.get("count", 1)),
                 box=p.get("box"),  # Include bounding box coordinates
+                alternate_confidences=p.get("alternateConfidences"),
             )
             for p in result.get("predictions", [])
         ]
