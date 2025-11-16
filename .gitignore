@@ -2,6 +2,8 @@
 
 Dataset/
 
+Models/
+
 *.zip
 
 Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
