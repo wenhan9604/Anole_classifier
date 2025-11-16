@@ -320,8 +320,8 @@ export class OnnxDetectionService {
    */
   private static processYoloOutput(
     output: ort.Tensor,
-    originalWidth: number,
-    originalHeight: number,
+    _originalWidth: number,
+    _originalHeight: number,
     padX: number,
     padY: number,
     scale: number,
