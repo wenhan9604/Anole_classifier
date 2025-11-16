@@ -12,7 +12,7 @@ import math
 import cv2 
 
 # --- Load models ---
-yolo_model = YOLO("./runs/detect/yolov8x/weights/best.pt")
+yolo_model = YOLO("./runs/detect/yolov8x_data_v4/weights/best.pt")
 swin_model = SwinForImageClassification.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
 processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
 swin_model.eval()
@@ -21,11 +21,11 @@ print(f"Models loaded!")
 
 # --- Config ---
 dest_folder_path = "./inference"
-image_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/images"
-label_folder = "../Dataset/yolo_training/florida_five_anole_10000/test/labels"
+image_folder = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/images"
+label_folder = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
-IOU_THRESHOLD = 0.5
+IOU_THRESHOLD = 0.15
 CONF_THRESH = 0.3
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
