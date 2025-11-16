@@ -21,7 +21,6 @@ export interface iNaturalistAuth {
 }
 
 class iNaturalistService {
-  private baseURL = 'https://api.inaturalist.org/v1';
   // Optional backend base URL for local FastAPI proxy (set VITE_API_BASE_URL)
   private backendBaseURL: string | null = (typeof import.meta !== 'undefined' && (import.meta as any).env)
     ? (import.meta as any).env.VITE_API_BASE_URL || null
