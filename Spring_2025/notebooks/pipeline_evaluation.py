@@ -22,14 +22,14 @@ INPUT_LABEL_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
 IOU_THRESHOLD = 0.2
-CONF_THRESH = 0.3
+CONF_THRESH = 0.5
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
-ID_TO_NAME = {0: "bark_anole", 
-                1: "brown_anole",
-                2: "crested_anole",
-                3: "green_anole",
-                4: "knight_anole"}  # replace with your mapping if available
+ID_TO_NAME = {0: "bark", 
+                1: "brown",
+                2: "crested",
+                3: "green",
+                4: "knight"}
 
 #Helper function
 
@@ -65,7 +65,7 @@ def compute_iou(boxA, boxB):
     boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
     return interArea / float(boxAArea + boxBArea - interArea)
 
-def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_labels, img_name = "annotated", target_dir = "."):
+def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name = "annotated", target_dir = "."):
 # ============================================================
 #  Draw GT + prediction boxes and save annotated image
 # ============================================================
@@ -95,18 +95,18 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
         )
 
     # Draw prediction boxes (red)
-    for (px1, py1, px2, py2), cls_id in zip(pred_boxes, pred_labels):
+    for (px1, py1, px2, py2), cls_id, conf in zip(pred_boxes, pred_labels, pred_conf):
         cv2.rectangle(annotated, (px1, py1), (px2, py2), (0, 0, 255), 2)
 
         if ID_TO_NAME is not None:
-            label_text = f"Pred: {ID_TO_NAME.get(cls_id, cls_id)}"
+            label_text = f"Pred: {ID_TO_NAME.get(cls_id, cls_id)} Det Conf: {conf:.3f}"
         else:
-            label_text = f"Pred: {cls_id}"
+            label_text = f"Pred: {cls_id} Det Conf: {conf:.3f}"
 
         cv2.putText(
             annotated,
             label_text,
-            (px1, max(0, py1 - 5)),
+            (px1, max(0, py2)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (0, 0, 255),
@@ -202,7 +202,7 @@ def main_function():
         if TOP_K is not None:
             boxes = boxes[:TOP_K]
 
-        pred_boxes, pred_labels = [], []
+        pred_boxes, pred_labels, pred_conf = [], [], []
 
         for det in boxes:
             x1, y1, x2, y2, conf, _ = det.tolist()
@@ -240,14 +240,15 @@ def main_function():
                 logits = swin_model(**inputs).logits
                 swin_class = logits.argmax(dim=1).item()
 
-            print(f"Prediction bb: {x1} {y1} {x2} {y2}")
+            print(f"Prediction bb: {x1} {y1} {x2} {y2}, Conf: {conf:.3f}, Swin Class: {swin_class}")
 
             pred_boxes.append([x1, y1, x2, y2])
+            pred_conf.append(conf)
             pred_labels.append(swin_class)
 
         # Annotate image with ground truth and pred labels and save image
 
-        annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, img_name, dest_root_dir / "annotated_images")
+        annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, dest_root_dir / "annotated_images")
 
         # --- Match predictions to GT using IoU ---
         # This block contains logic that matches each prediction to each ground truth (gt) label
@@ -255,12 +256,15 @@ def main_function():
         # Match condition: Based on IoU between pred and gt bounding box. IoU > threshold
         # Note: Rmb that these indexes are only for 1 image 
         matched_gt = set() 
-        for pb, pl in zip(pred_boxes, pred_labels):
+        matched_pred = set()
+        for pred_idx, (pb, pl) in enumerate(zip(pred_boxes, pred_labels)):
             best_iou = 0
             best_idx = -1
+
             for idx, gb in enumerate(gt_boxes):
                 if idx in matched_gt:
                     continue
+
                 iou = compute_iou(pb, gb.tolist()) 
                 if iou >= IOU_THRESHOLD and iou > best_iou: 
                     best_iou = iou
@@ -271,6 +275,9 @@ def main_function():
                 y_true_all.append(gt_labels[best_idx].item())
                 y_pred_all.append(pl)
                 matched_gt.add(best_idx)
+                matched_pred.add(pred_idx)
+
+                print(f"Best match found! GT: {gt_labels[best_idx].item()} Pred: {pl} IOU: {best_iou}")
         
         # --- Handle missed detections (False Negatives) ---
         # For gt labels that are not matched, will be deemed as missed detection
@@ -278,6 +285,12 @@ def main_function():
             if idx not in matched_gt:
                 y_true_all.append(gt_label.item())   # Ground truth exists
                 y_pred_all.append(MISSED_CLASS_ID)   # But no prediction found
+
+        # --- Handle false positives (extra predictions) ---
+        for pred_idx, pl in enumerate(pred_labels):
+            if pred_idx not in matched_pred:
+                y_true_all.append(MISSED_CLASS_ID)  # No GT object
+                y_pred_all.append(pl)               # Model predicted a class
 
 
     #Save results into .csv file
@@ -289,12 +302,14 @@ def main_function():
     print(f"Saved evaluation results to {results_path}")
 
     # --- Compute Precision, Recall, F1 ---
-    print(f"\nClassification Report (IoU ≥ {IOU_THRESHOLD} matched):")
+    ALL_LABELS = list(range(NUM_CLASSES)) + [MISSED_CLASS_ID]
+    TARGET_NAMES = [f"Class {i}" for i in range(NUM_CLASSES)] + ["MISSED"]
+
     print(classification_report(
         y_true_all,
         y_pred_all,
-        labels=list(range(NUM_CLASSES)),  # exclude class 6
-        target_names=[f"Class {i}" for i in range(NUM_CLASSES)],
+        labels=ALL_LABELS,
+        target_names=TARGET_NAMES,
         zero_division=0
     ))
 
