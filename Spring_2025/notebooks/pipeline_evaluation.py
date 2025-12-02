@@ -12,8 +12,8 @@ import math
 import cv2 
 
 # --- Load models ---
-YOLO_MODEL_FILE_PATH = YOLO("./runs/detect/yolov8x_data_v4/weights/best.pt")
-SWIN_MODEL_FILE_PATH = SwinForImageClassification.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
+YOLO_MODEL_FILE_PATH = "./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt"
+SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base"
 
 # --- Config ---
 DEST_FOLDER_PATH = "./inference"
@@ -21,7 +21,7 @@ INPUT_IMAGE_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/
 INPUT_LABEL_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
-IOU_THRESHOLD = 0.15
+IOU_THRESHOLD = 0.2
 CONF_THRESH = 0.3
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
@@ -41,6 +41,12 @@ def yolo_to_xyxy(yolo_box, img_w, img_h):
     y1 = yc - h / 2
     x2 = xc + w / 2
     y2 = yc + h / 2
+
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(x2, img_w)
+    y2 = min(y2, img_h)
+
     return [x1, y1, x2, y2]
 
 # --- IoU computation ---
@@ -60,6 +66,7 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
 # ============================================================
 #  Draw GT + prediction boxes and save annotated image
 # ============================================================
+
     # Work in BGR for OpenCV drawing
     annotated = image_rgb.copy()
 
@@ -79,7 +86,7 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
             (gx1, max(0, gy1 - 5)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
-            (0, 255, 0),
+            (255, 0, 0),
             1,
             cv2.LINE_AA,
         )
@@ -111,19 +118,28 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
     print(f"Annotated image saved to: {save_path}")
 
 def main_function():
+
+    print(f"--- EVALUATION PIPELINE ---")
+    print(f"Config: IOU_THRESHOLD: {IOU_THRESHOLD} \n CONF_THRESH: {CONF_THRESH} \n MAX_DETECTION: {TOP_K} \n")
+
+    print(f"--- LOADING MODELS ---")
+    print(f"YOLO_MODEL_FILE_PATH: {YOLO_MODEL_FILE_PATH} \n SWIN_MODEL_FILE_PATH; {SWIN_MODEL_FILE_PATH} \n")
+
     # --- Load models ---
     yolo_model = YOLO(YOLO_MODEL_FILE_PATH)
     swin_model = SwinForImageClassification.from_pretrained(SWIN_MODEL_FILE_PATH)
     processor = AutoImageProcessor.from_pretrained(SWIN_MODEL_FILE_PATH)
     swin_model.eval()
 
-    print(f"Models loaded!")
+    print(f"--- COMPLETED LOADING MODELS ---")
 
     #Create a unique output directory based on the time of each run
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     dest_root_dir = Path(DEST_FOLDER_PATH) / f"run_{run_id}" 
     dest_root_dir.mkdir(parents=True, exist_ok=True)
     results_path = dest_root_dir / "eval_results.csv"
+    annotated_img_dir = dest_root_dir / "annotated_images"
+    annotated_img_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Storage for final eval ---
     y_true_all = []
@@ -148,7 +164,7 @@ def main_function():
 
         # image = Image.open(image_path).convert("RGB")
         image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         img_w, img_h, _ = image.shape
 
         # print(f"Image size: {image.shape}")
@@ -276,7 +292,7 @@ def main_function():
     ))
 
 
-if __name__ == "main":
+if __name__ == "__main__":
 
     main_function()
 
