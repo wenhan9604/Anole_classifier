@@ -282,5 +282,99 @@ export class AnoleDetectionService {
       'Knight Anole'
     ];
   }
+
+  /**
+   * Classify a single cropped region from an image
+   * @param imageFile - Original image file
+   * @param box - Bounding box coordinates [x1, y1, x2, y2] in original image coordinates
+   * @param mode - Detection mode to use
+   * @returns Classification result
+   */
+  static async classifyRegion(
+    imageFile: File,
+    box: [number, number, number, number],
+    mode: DetectionMode = 'backend'
+  ): Promise<AnolePrediction> {
+    try {
+      // Load the original image
+      const img = await this.loadImage(imageFile);
+      
+      // Extract box coordinates
+      const [x1, y1, x2, y2] = box;
+      const width = x2 - x1;
+      const height = y2 - y1;
+      
+      // Crop the region
+      const croppedCanvas = await this.cropImage(img, x1, y1, width, height);
+      
+      if (mode === 'onnx-frontend') {
+        // Use frontend ONNX classification
+        if (!this.isOnnxInitialized) {
+          await this.initializeOnnx();
+        }
+        
+        const classification = await OnnxDetectionService.classifyAnole(croppedCanvas);
+        
+        return {
+          species: classification.class,
+          scientificName: this.getScientificName(classification.classId),
+          confidence: classification.score,
+          count: 1,
+          boundingBox: box,
+        };
+      } else {
+        // Use backend classification - convert canvas to blob and send
+        return new Promise((resolve, reject) => {
+          croppedCanvas.toBlob(async (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob from cropped image'));
+              return;
+            }
+            
+            try {
+              // Create a File from the blob
+              const croppedFile = new File([blob], 'cropped.jpg', { type: 'image/jpeg' });
+              
+              // Send to backend for classification
+              const formData = new FormData();
+              formData.append('file', croppedFile);
+              
+              const url = `${API_URL}/api/predict?use_onnx=${mode !== 'backend' && mode !== 'backend-pytorch'}`;
+              const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+              });
+              
+              if (!response.ok) {
+                throw new Error(`Backend classification failed: ${response.statusText}`);
+              }
+              
+              const result = await response.json();
+              
+              // Extract the first prediction (since we're classifying a single region)
+              if (result.predictions && result.predictions.length > 0) {
+                const pred = result.predictions[0];
+                resolve({
+                  species: pred.species,
+                  scientificName: pred.scientificName,
+                  confidence: pred.confidence,
+                  count: 1,
+                  boundingBox: box,
+                  alternateConfidences: pred.alternateConfidences,
+                });
+              } else {
+                reject(new Error('No classification result returned'));
+              }
+            } catch (error) {
+              reject(error);
+            }
+          }, 'image/jpeg', 0.95);
+        });
+      }
+    } catch (error) {
+      console.error('Region classification error:', error);
+      throw new Error(`Failed to classify region: ${error}`);
+    }
+  }
 }
 
