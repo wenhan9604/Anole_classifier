@@ -35,8 +35,11 @@ ID_TO_NAME = {0: "bark_anole",
 
 # --- Helper: Convert YOLO to [x1, y1, x2, y2] ---
 def yolo_to_xyxy(yolo_box, img_w, img_h):
+
     cls, xc, yc, w, h = yolo_box #yolo_box format (normalized) = (class_id, x_center, y_center, width_boundingbox, height_boundingbox)
+
     xc, yc, w, h = xc * img_w, yc * img_h, w * img_w, h * img_h
+
     x1 = xc - w / 2
     y1 = yc - h / 2
     x2 = xc + w / 2
@@ -44,8 +47,8 @@ def yolo_to_xyxy(yolo_box, img_w, img_h):
 
     x1 = max(0, x1)
     y1 = max(0, y1)
-    x2 = min(x2, img_w)
-    y2 = min(y2, img_h)
+    x2 = min(x2, img_w - 1)
+    y2 = min(y2, img_h - 1)
 
     return [x1, y1, x2, y2]
 
@@ -141,6 +144,8 @@ def main_function():
     annotated_img_dir = dest_root_dir / "annotated_images"
     annotated_img_dir.mkdir(parents=True, exist_ok=True)
 
+    print(f"--- Saving results and debug images to {dest_root_dir} ---\n")
+
     # --- Storage for final eval ---
     y_true_all = []
     y_pred_all = []
@@ -162,12 +167,8 @@ def main_function():
 
         # print(f"Loaded image file: {image_path} \n loaded label file: {label_path}")
 
-        # image = Image.open(image_path).convert("RGB")
         image = cv2.imread(image_path)
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        img_w, img_h, _ = image.shape
-
-        # print(f"Image size: {image.shape}")
+        img_h, img_w, _ = image.shape
 
         # --- Load GT ---
         # Loads each instance of target found in image 
@@ -179,6 +180,10 @@ def main_function():
                 box = yolo_to_xyxy(parts, img_w, img_h)
                 gt_boxes.append(box)
                 gt_labels.append(cls_id)
+
+                print(f"\n\nLabel Path: {label_path}. Parts: {parts}")
+                print(f"yolo converted box: {box}")
+
 
         gt_boxes = torch.tensor(gt_boxes)
         gt_labels = torch.tensor(gt_labels)
@@ -234,6 +239,8 @@ def main_function():
             with torch.no_grad():
                 logits = swin_model(**inputs).logits
                 swin_class = logits.argmax(dim=1).item()
+
+            print(f"Prediction bb: {x1} {y1} {x2} {y2}")
 
             pred_boxes.append([x1, y1, x2, y2])
             pred_labels.append(swin_class)
