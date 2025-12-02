@@ -141,8 +141,12 @@ def main_function():
     dest_root_dir = Path(DEST_FOLDER_PATH) / f"run_{run_id}" 
     dest_root_dir.mkdir(parents=True, exist_ok=True)
     results_path = dest_root_dir / "eval_results.csv"
+
     annotated_img_dir = dest_root_dir / "annotated_images"
     annotated_img_dir.mkdir(parents=True, exist_ok=True)
+
+    missed_detection_img_dir = dest_root_dir / "missed_detections"
+    missed_detection_img_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"--- Saving results and debug images to {dest_root_dir} ---\n")
 
@@ -248,7 +252,7 @@ def main_function():
 
         # Annotate image with ground truth and pred labels and save image
 
-        annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, dest_root_dir / "annotated_images")
+        annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, annotated_img_dir)
 
         # --- Match predictions to GT using IoU ---
         # This block contains logic that matches each prediction to each ground truth (gt) label
@@ -285,6 +289,8 @@ def main_function():
             if idx not in matched_gt:
                 y_true_all.append(gt_label.item())   # Ground truth exists
                 y_pred_all.append(MISSED_CLASS_ID)   # But no prediction found
+
+                annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, missed_detection_img_dir)
 
         # --- Handle false positives (extra predictions) ---
         for pred_idx, pl in enumerate(pred_labels):
