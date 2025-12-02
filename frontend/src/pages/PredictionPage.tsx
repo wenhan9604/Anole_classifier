@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { iNaturalistAPI, getCurrentLocation } from "../services/iNaturalistService";
 import type { iNaturalistObservation } from "../services/iNaturalistService";
 import { AnoleDetectionService } from "../services/AnoleDetectionService";
 import type { DetectionMode } from "../services/AnoleDetectionService";
+import { ResizableBoundingBox } from "../components/ResizableBoundingBox";
 
 // Define the 5 Florida anole species (for reference)
 // const FLORIDA_ANOLE_SPECIES = [
@@ -46,7 +47,13 @@ export default function PredictionPage() {
   const [uploadingToiNaturalist, setUploadingToiNaturalist] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [detectionMode, setDetectionMode] = useState<DetectionMode>('backend');
+  const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingBox, setDrawingBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const [isClassifyingDrawnBox, setIsClassifyingDrawnBox] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const reclassifyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check for gpu query parameter
   useEffect(() => {
@@ -62,6 +69,15 @@ export default function PredictionPage() {
       console.log('☁️ Backend PyTorch-CPU mode (default, uses best.pt)');
     }
   }, [searchParams]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (reclassifyTimeoutRef.current) {
+        clearTimeout(reclassifyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -182,6 +198,225 @@ export default function PredictionPage() {
     }
   };
 
+  const handleBoxResize = useCallback((index: number, newBox: { x: number; y: number; width: number; height: number }) => {
+    if (!detectionResult || !selectedFile || !imageDimensions) return;
+
+    // Update the box coordinates in the detection result
+    const updatedPredictions = [...detectionResult.predictions];
+    const [x1, y1, x2, y2] = [
+      newBox.x,
+      newBox.y,
+      newBox.x + newBox.width,
+      newBox.y + newBox.height
+    ];
+    
+    updatedPredictions[index] = {
+      ...updatedPredictions[index],
+      box: [x1, y1, x2, y2] as [number, number, number, number],
+    };
+
+    setDetectionResult({
+      ...detectionResult,
+      predictions: updatedPredictions,
+    });
+
+    // Debounce reclassification - wait 500ms after user stops adjusting
+    if (reclassifyTimeoutRef.current) {
+      clearTimeout(reclassifyTimeoutRef.current);
+    }
+
+    reclassifyTimeoutRef.current = setTimeout(async () => {
+      try {
+        setReclassifyingIndex(index);
+        console.log(`Reclassifying box ${index} with new coordinates: [${x1}, ${y1}, ${x2}, ${y2}]`);
+        
+        const classification = await AnoleDetectionService.classifyRegion(
+          selectedFile,
+          [x1, y1, x2, y2],
+          detectionMode
+        );
+
+        // Update the prediction with new classification
+        const finalPredictions = [...detectionResult.predictions];
+        finalPredictions[index] = {
+          species: classification.species,
+          scientificName: classification.scientificName,
+          confidence: classification.confidence,
+          count: 1,
+          box: [x1, y1, x2, y2] as [number, number, number, number],
+          altConfidences: classification.alternateConfidences,
+        };
+
+        setDetectionResult({
+          ...detectionResult,
+          predictions: finalPredictions,
+        });
+
+        console.log(`Reclassification complete: ${classification.species} (${(classification.confidence * 100).toFixed(1)}%)`);
+      } catch (error) {
+        console.error(`Failed to reclassify box ${index}:`, error);
+        
+        // Update the prediction with "Failed" label
+        const finalPredictions = [...detectionResult.predictions];
+        finalPredictions[index] = {
+          species: "Failed",
+          scientificName: "Unknown",
+          confidence: 0,
+          count: 1,
+          box: [x1, y1, x2, y2] as [number, number, number, number],
+          altConfidences: undefined,
+        };
+
+        setDetectionResult({
+          ...detectionResult,
+          predictions: finalPredictions,
+        });
+      } finally {
+        setReclassifyingIndex(null);
+      }
+    }, 500);
+  }, [detectionResult, selectedFile, imageDimensions, detectionMode]);
+
+  // Convert display coordinates to natural image coordinates
+  const displayToNatural = useCallback((displayX: number, displayY: number): [number, number] => {
+    if (!imageDimensions || !imageRef.current) return [0, 0];
+    const scaleX = imageDimensions.width / imageRef.current.clientWidth;
+    const scaleY = imageDimensions.height / imageRef.current.clientHeight;
+    return [displayX * scaleX, displayY * scaleY];
+  }, [imageDimensions]);
+
+  // Convert natural image coordinates to display coordinates
+  const naturalToDisplay = useCallback((naturalX: number, naturalY: number): [number, number] => {
+    if (!imageDimensions || !imageRef.current) return [0, 0];
+    const scaleX = imageRef.current.clientWidth / imageDimensions.width;
+    const scaleY = imageRef.current.clientHeight / imageDimensions.height;
+    return [naturalX * scaleX, naturalY * scaleY];
+  }, [imageDimensions]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isDrawing || !imageContainerRef.current || !imageRef.current || !imageDimensions) return;
+    
+    e.preventDefault();
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Check if click is within image bounds
+    if (x < 0 || y < 0 || x > imageRef.current.clientWidth || y > imageRef.current.clientHeight) {
+      return;
+    }
+    
+    const [naturalX, naturalY] = displayToNatural(x, y);
+    setDrawingBox({ startX: naturalX, startY: naturalY, endX: naturalX, endY: naturalY });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDrawing || !drawingBox || !imageContainerRef.current || !imageRef.current) return;
+    
+    e.preventDefault();
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Clamp to image bounds
+    const clampedX = Math.max(0, Math.min(x, imageRef.current.clientWidth));
+    const clampedY = Math.max(0, Math.min(y, imageRef.current.clientHeight));
+    
+    const [naturalX, naturalY] = displayToNatural(clampedX, clampedY);
+    setDrawingBox({ ...drawingBox, endX: naturalX, endY: naturalY });
+  };
+
+  const handleMouseUp = async () => {
+    if (!isDrawing || !drawingBox || !selectedFile || !imageDimensions) return;
+    
+    // Calculate box coordinates
+    const x1 = Math.min(drawingBox.startX, drawingBox.endX);
+    const y1 = Math.min(drawingBox.startY, drawingBox.endY);
+    const x2 = Math.max(drawingBox.startX, drawingBox.endX);
+    const y2 = Math.max(drawingBox.startY, drawingBox.endY);
+    
+    // Ensure minimum box size
+    const minSize = 20;
+    const width = Math.max(minSize, x2 - x1);
+    const height = Math.max(minSize, y2 - y1);
+    
+    // Clamp to image bounds
+    const finalX1 = Math.max(0, Math.min(x1, imageDimensions.width - width));
+    const finalY1 = Math.max(0, Math.min(y1, imageDimensions.height - height));
+    const finalX2 = Math.min(imageDimensions.width, finalX1 + width);
+    const finalY2 = Math.min(imageDimensions.height, finalY1 + height);
+    
+    const finalBox: [number, number, number, number] = [finalX1, finalY1, finalX2, finalY2];
+    
+    // Clear drawing state
+    setDrawingBox(null);
+    setIsDrawing(false);
+    
+    // Classify the drawn region
+    try {
+      setIsClassifyingDrawnBox(true);
+      console.log(`Classifying drawn box: [${finalX1}, ${finalY1}, ${finalX2}, ${finalY2}]`);
+      
+      const classification = await AnoleDetectionService.classifyRegion(
+        selectedFile,
+        finalBox,
+        detectionMode
+      );
+      
+      // Add to detection results
+      const newPrediction: PredictionResult = {
+        species: classification.species,
+        scientificName: classification.scientificName,
+        confidence: classification.confidence,
+        count: 1,
+        box: finalBox,
+        altConfidences: classification.alternateConfidences,
+      };
+      
+      if (detectionResult) {
+        setDetectionResult({
+          ...detectionResult,
+          totalLizards: detectionResult.totalLizards + 1,
+          predictions: [...detectionResult.predictions, newPrediction],
+        });
+      } else {
+        setDetectionResult({
+          totalLizards: 1,
+          predictions: [newPrediction],
+        });
+      }
+      
+      console.log(`Classification complete: ${classification.species} (${(classification.confidence * 100).toFixed(1)}%)`);
+    } catch (error) {
+      console.error('Failed to classify drawn box:', error);
+      
+      // Add a "Failed" prediction to results
+      const failedPrediction: PredictionResult = {
+        species: "Failed",
+        scientificName: "Unknown",
+        confidence: 0,
+        count: 1,
+        box: finalBox,
+        altConfidences: undefined,
+      };
+      
+      if (detectionResult) {
+        setDetectionResult({
+          ...detectionResult,
+          totalLizards: detectionResult.totalLizards + 1,
+          predictions: [...detectionResult.predictions, failedPrediction],
+        });
+      } else {
+        setDetectionResult({
+          totalLizards: 1,
+          predictions: [failedPrediction],
+        });
+      }
+    } finally {
+      setIsClassifyingDrawnBox(false);
+    }
+  };
+
   return (
     <div className="container" style={{ textAlign: "center" }}>
       <h1 style={{ color: "#2E7D32", fontSize: "2.5rem", marginBottom: "0.5rem" }}>🦎 Anole Species Classification</h1>
@@ -289,11 +524,40 @@ export default function PredictionPage() {
           ) : (
             /* Image preview area */
             <div style={{ textAlign: "center" }}>
-              <div style={{ 
-                position: "relative", 
-                display: "inline-block",
-                marginBottom: "1rem"
-              }}>
+              {isDrawing && (
+                <div style={{
+                  marginBottom: "0.5rem",
+                  padding: "8px 16px",
+                  backgroundColor: "#E3F2FD",
+                  color: "#1976D2",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  textAlign: "center"
+                }}>
+                  ✏️ Drawing mode: Click and drag on the image to draw a bounding box
+                </div>
+              )}
+              <div 
+                ref={imageContainerRef}
+                style={{ 
+                  position: "relative", 
+                  display: "inline-block",
+                  marginBottom: "1rem",
+                  cursor: isDrawing ? "crosshair" : "default",
+                  userSelect: isDrawing ? "none" : "auto"
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={() => {
+                  // Cancel drawing if mouse leaves
+                  if (isDrawing && drawingBox) {
+                    setDrawingBox(null);
+                    setIsDrawing(false);
+                  }
+                }}
+              >
                 <img 
                   ref={imageRef}
                   src={previewUrl} 
@@ -307,7 +571,8 @@ export default function PredictionPage() {
                     borderRadius: "8px",
                     border: "2px solid #4CAF50",
                     display: "block",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                    pointerEvents: isDrawing ? "none" : "auto"
                   }} 
                   onLoad={(e) => {
                     const img = e.currentTarget;
@@ -317,20 +582,46 @@ export default function PredictionPage() {
                     });
                   }}
                 />
-                {/* Draw bounding boxes overlay - matching pipeline_evaluation.py coordinate system */}
+                {/* Drawing box overlay */}
+                {isDrawing && drawingBox && imageRef.current && imageDimensions && (() => {
+                  const [displayX1, displayY1] = naturalToDisplay(drawingBox.startX, drawingBox.startY);
+                  const [displayX2, displayY2] = naturalToDisplay(drawingBox.endX, drawingBox.endY);
+                  const left = Math.min(displayX1, displayX2);
+                  const top = Math.min(displayY1, displayY2);
+                  const width = Math.abs(displayX2 - displayX1);
+                  const height = Math.abs(displayY2 - displayY1);
+                  
+                  return (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${width}px`,
+                        height: `${height}px`,
+                        border: "2px dashed #2196F3",
+                        backgroundColor: "rgba(33, 150, 243, 0.1)",
+                        borderRadius: "4px",
+                        pointerEvents: "none",
+                        zIndex: 20
+                      }}
+                    />
+                  );
+                })()}
+                {/* Draw resizable bounding boxes overlay */}
                 {(() => {
                   if (!detectionResult || !detectionResult.predictions || !imageDimensions || !imageRef.current) {
                     return null;
                   }
                   
                   const boxesWithCoords = detectionResult.predictions.filter(p => p.box && Array.isArray(p.box) && p.box.length === 4);
-                  console.log("Rendering boxes:", boxesWithCoords.length, "boxes found");
-                  console.log("Image dimensions:", imageDimensions);
-                  console.log("Display dimensions:", imageRef.current.clientWidth, imageRef.current.clientHeight);
                   
                   if (boxesWithCoords.length === 0) {
                     return null;
                   }
+                  
+                  const displayWidth = imageRef.current.clientWidth;
+                  const displayHeight = imageRef.current.clientHeight;
                   
                   return (
                     <div 
@@ -338,77 +629,44 @@ export default function PredictionPage() {
                         position: "absolute",
                         top: 0,
                         left: 0,
-                        width: `${imageRef.current.clientWidth}px`,
-                        height: `${imageRef.current.clientHeight}px`,
-                        pointerEvents: "none",
+                        width: `${displayWidth}px`,
+                        height: `${displayHeight}px`,
+                        pointerEvents: isDrawing ? "none" : "auto",
                         overflow: "visible"
                       }}
                     >
                       {boxesWithCoords.map((prediction, idx) => {
-                        if (!prediction.box || prediction.box.length !== 4 || !imageRef.current) return null;
+                        if (!prediction.box || prediction.box.length !== 4) return null;
                         
-                        // Get actual image dimensions (what YOLO used)
-                        const imgNaturalWidth = imageDimensions.width;
-                        const imgNaturalHeight = imageDimensions.height;
-                        
-                        // Get displayed image dimensions
-                        const displayWidth = imageRef.current.clientWidth;
-                        const displayHeight = imageRef.current.clientHeight;
-                        
-                        // Calculate scale factors (matching pipeline_evaluation.py: boxes are in absolute pixels)
-                        // YOLO returns coordinates in original image pixel space
-                        const scaleX = displayWidth / imgNaturalWidth;
-                        const scaleY = displayHeight / imgNaturalHeight;
-                        
-                        // Extract bounding box coordinates [x1, y1, x2, y2] from pipeline_evaluation.py format
+                        // Extract bounding box coordinates [x1, y1, x2, y2] in natural image coordinates
                         const [x1, y1, x2, y2] = prediction.box;
+                        const boxWidth = x2 - x1;
+                        const boxHeight = y2 - y1;
                         
-                        // Scale coordinates to displayed image size
-                        const left = x1 * scaleX;
-                        const top = y1 * scaleY;
-                        const width = (x2 - x1) * scaleX;
-                        const height = (y2 - y1) * scaleY;
+                        // Color based on confidence (green=high, yellow=medium, red=low, gray for failed)
+                        const isFailed = prediction.species === "Failed" || prediction.confidence === 0;
+                        const color = isFailed ? "#6c757d" : prediction.confidence > 0.8 ? "#28a745" : prediction.confidence > 0.6 ? "#ffc107" : "#dc3545";
                         
-                        console.log(`Box ${idx}: [${x1}, ${y1}, ${x2}, ${y2}] -> scaled: [${left}, ${top}, ${width}, ${height}]`);
-                        
-                        // Color based on confidence (green=high, yellow=medium, red=low)
-                        const color = prediction.confidence > 0.8 ? "#28a745" : prediction.confidence > 0.6 ? "#ffc107" : "#dc3545";
+                        const label = isFailed 
+                          ? `Failed (0.00%)${reclassifyingIndex === idx ? ' 🔄' : ''}`
+                          : `${prediction.species} (${(prediction.confidence * 100).toFixed(1)}%)${reclassifyingIndex === idx ? ' 🔄' : ''}`;
                         
                         return (
-                          <div key={idx}>
-                            {/* Bounding box rectangle */}
-                            <div
-                              style={{
-                                position: "absolute",
-                                left: `${left}px`,
-                                top: `${top}px`,
-                                width: `${width}px`,
-                                height: `${height}px`,
-                                border: `3px solid ${color}`,
-                                borderRadius: "4px",
-                                boxSizing: "border-box"
-                              }}
-                            />
-                            {/* Label above box */}
-                            <div
-                              style={{
-                                position: "absolute",
-                                left: `${left}px`,
-                                top: `${Math.max(0, top - 25)}px`,
-                                backgroundColor: color,
-                                color: "white",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontSize: "11px",
-                                fontWeight: "bold",
-                                whiteSpace: "nowrap",
-                                pointerEvents: "none",
-                                zIndex: 10
-                              }}
-                            >
-                              {prediction.species} ({(prediction.confidence * 100).toFixed(1)}%)
-                            </div>
-                          </div>
+                          <ResizableBoundingBox
+                            key={idx}
+                            x={x1}
+                            y={y1}
+                            width={boxWidth}
+                            height={boxHeight}
+                            color={color}
+                            label={label}
+                            onResize={(newBox) => handleBoxResize(idx, newBox)}
+                            imageNaturalWidth={imageDimensions.width}
+                            imageNaturalHeight={imageDimensions.height}
+                            imageDisplayWidth={displayWidth}
+                            imageDisplayHeight={displayHeight}
+                            disabled={isLoading || reclassifyingIndex !== null || isDrawing}
+                          />
                         );
                       })}
                     </div>
@@ -462,31 +720,31 @@ export default function PredictionPage() {
                 
                 <button
                   onClick={handlePredict}
-                  disabled={!selectedFile || isLoading}
+                  disabled={!selectedFile || isLoading || isDrawing}
                   className="button"
                   style={{
                     padding: "10px 24px",
-                    backgroundColor: selectedFile && !isLoading ? "#4CAF50" : "#9e9e9e",
+                    backgroundColor: selectedFile && !isLoading && !isDrawing ? "#4CAF50" : "#9e9e9e",
                     color: "white",
                     border: "none",
                     borderRadius: "8px",
                     fontSize: "16px",
                     fontWeight: "600",
-                    cursor: selectedFile && !isLoading ? "pointer" : "not-allowed",
+                    cursor: selectedFile && !isLoading && !isDrawing ? "pointer" : "not-allowed",
                     transition: "all 0.2s ease",
-                    boxShadow: selectedFile && !isLoading ? "0 4px 12px rgba(76, 175, 80, 0.3)" : "none",
+                    boxShadow: selectedFile && !isLoading && !isDrawing ? "0 4px 12px rgba(76, 175, 80, 0.3)" : "none",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.5rem"
                   }}
                   onMouseEnter={(e) => {
-                    if (selectedFile && !isLoading) {
+                    if (selectedFile && !isLoading && !isDrawing) {
                       e.currentTarget.style.transform = "translateY(-2px)";
                       e.currentTarget.style.boxShadow = "0 6px 16px rgba(76, 175, 80, 0.4)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (selectedFile && !isLoading) {
+                    if (selectedFile && !isLoading && !isDrawing) {
                       e.currentTarget.style.transform = "translateY(0)";
                       e.currentTarget.style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.3)";
                     }
@@ -509,6 +767,63 @@ export default function PredictionPage() {
                     <>🔍 Classify Species</>
                   )}
                 </button>
+
+                {previewUrl && imageDimensions && (
+                  <button
+                    onClick={() => {
+                      if (isDrawing) {
+                        setDrawingBox(null);
+                      }
+                      setIsDrawing(!isDrawing);
+                    }}
+                    disabled={isLoading || isClassifyingDrawnBox}
+                    style={{
+                      padding: "10px 20px",
+                      backgroundColor: isDrawing ? "#2196F3" : "#E3F2FD",
+                      color: isDrawing ? "white" : "#1976D2",
+                      border: `2px solid ${isDrawing ? "#1976D2" : "#2196F3"}`,
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      cursor: isLoading || isClassifyingDrawnBox ? "not-allowed" : "pointer",
+                      transition: "all 0.2s ease",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isLoading && !isClassifyingDrawnBox) {
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                        e.currentTarget.style.boxShadow = "0 4px 8px rgba(33, 150, 243, 0.3)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isLoading && !isClassifyingDrawnBox) {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }
+                    }}
+                  >
+                    {isClassifyingDrawnBox ? (
+                      <>
+                        <div style={{
+                          width: "14px",
+                          height: "14px",
+                          border: "2px solid currentColor",
+                          borderTop: "2px solid transparent",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite",
+                          display: "inline-block"
+                        }} />
+                        Classifying...
+                      </>
+                    ) : isDrawing ? (
+                      <>✏️ Cancel Drawing</>
+                    ) : (
+                      <>✏️ Draw Box</>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -546,16 +861,18 @@ export default function PredictionPage() {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
                 <h4 style={{ margin: 0, color: "#495057", flex: "1", minWidth: "200px" }}>
-                  {prediction.species} ({prediction.scientificName})
+                  {prediction.species === "Failed" ? "Failed" : `${prediction.species} (${prediction.scientificName})`}
                 </h4>
                 <span className={`confidence-${prediction.confidence > 0.8 ? 'high' : prediction.confidence > 0.6 ? 'medium' : 'low'}`} style={{ 
                   padding: "0.25rem 0.5rem",
                   borderRadius: "4px",
                   fontSize: "0.875rem",
                   fontWeight: "bold",
-                  whiteSpace: "nowrap"
+                  whiteSpace: "nowrap",
+                  backgroundColor: prediction.species === "Failed" ? "#6c757d" : undefined,
+                  color: prediction.species === "Failed" ? "white" : undefined
                 }}>
-                  {(prediction.confidence * 100).toFixed(1)}% confidence
+                  {prediction.species === "Failed" ? "0.00% confidence" : `${(prediction.confidence * 100).toFixed(1)}% confidence`}
                 </span>
               </div>
               
