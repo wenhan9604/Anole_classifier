@@ -291,13 +291,13 @@ def main_function():
                 matched_gt.add(best_idx)
                 matched_pred.add(pred_idx)
 
-                print(f"Best match found for Pred: {pl} -> GT: {gl} IOU: {best_iou}")
+                print(f"Best match found for Pred: {ID_TO_NAME[int(pl)]} -> GT: {ID_TO_NAME[int(gl)]} IOU: {best_iou}")
 
                 if(pl != gl):
                     print(f"Mis-classification: Prediction label doesnt match with GT label")
                     annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, mis_class_img_dir)
             else:
-                print(f"No best match found for Pred: {pl}")
+                print(f"No best match found for Pred: {ID_TO_NAME[int(pl)]}")
         
         # --- Handle missed detections (False Negatives) ---
         # For gt labels that are not matched, will be deemed as missed detection
