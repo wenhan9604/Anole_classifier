@@ -15,15 +15,18 @@ import cv2
 YOLO_MODEL_FILE_PATH = "./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt"
 SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base"
 
-# --- Config ---
+# --- YOLO model config --- 
+NMS_IOU_THRESHOLD = 0.2
+CONF_THRESH = 0.3
+TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
+
+# --- Evaluation Config ---
 DEST_FOLDER_PATH = "./inference"
 INPUT_IMAGE_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/images"
 INPUT_LABEL_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
 NUM_CLASSES = 5
-IOU_THRESHOLD = 0.2
-CONF_THRESH = 0.5
-TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
+EVAL_IOU_THRESHOLD = 0.2
 
 ID_TO_NAME = {0: "bark", 
                 1: "brown",
@@ -134,7 +137,9 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
 def main_function():
 
     print(f"--- EVALUATION PIPELINE ---")
-    print(f"Config: IOU_THRESHOLD: {IOU_THRESHOLD} \n CONF_THRESH: {CONF_THRESH} \n MAX_DETECTION: {TOP_K} \n")
+    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {NMS_IOU_THRESHOLD} \n CONF_THRESH: {CONF_THRESH} \n MAX_DETECTION: {TOP_K} \n")
+
+    print(f"EVAL Config: EVAL_IOU_THRESHOLD: {EVAL_IOU_THRESHOLD} \n")
 
     print(f"--- LOADING MODELS ---")
     print(f"YOLO_MODEL_FILE_PATH: {YOLO_MODEL_FILE_PATH} \n SWIN_MODEL_FILE_PATH; {SWIN_MODEL_FILE_PATH} \n")
@@ -204,7 +209,13 @@ def main_function():
         gt_labels = torch.tensor(gt_labels)
 
         # --- Detection + Cropping + Classification ---
-        results = yolo_model(image)[0]
+        results = yolo_model(
+            image,
+            conf=CONF_THRESH,   # confidence threshold
+            iou=NMS_IOU_THRESHOLD,     # IoU threshold for NMS
+            max_det=TOP_K, # max detections per image
+        )[0]
+
         boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
 
         # print(f"Raw Detection result: {boxes}")
@@ -261,7 +272,7 @@ def main_function():
                     continue
 
                 iou = compute_iou(pb, gb.tolist()) 
-                if iou >= IOU_THRESHOLD and iou > best_iou: 
+                if iou >= EVAL_IOU_THRESHOLD and iou > best_iou: 
                     best_iou = iou
                     best_idx = idx
 
