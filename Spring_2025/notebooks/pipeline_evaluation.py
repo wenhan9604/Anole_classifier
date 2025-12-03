@@ -16,8 +16,8 @@ YOLO_MODEL_FILE_PATH = "./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt
 SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base"
 
 # --- YOLO model config --- 
-NMS_IOU_THRESHOLD = 0.2
-CONF_THRESH = 0.3
+NMS_IOU_THRESHOLD = 0.25
+CONF_THRESH = 0.5
 TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
 
 # --- Evaluation Config ---
@@ -25,7 +25,6 @@ DEST_FOLDER_PATH = "./inference"
 INPUT_IMAGE_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/images"
 INPUT_LABEL_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
-NUM_CLASSES = 5
 EVAL_IOU_THRESHOLD = 0.2
 
 ID_TO_NAME = {0: "bark", 
@@ -36,7 +35,7 @@ ID_TO_NAME = {0: "bark",
 
 #Helper function
 
-def clamp_coords(x1, y1, x2, y2):
+def clamp_coords(x1, y1, x2, y2, img_w, img_h):
 
     x1 = int(round(x1))
     y1 = int(round(y1))
@@ -62,7 +61,7 @@ def yolo_to_xyxy(yolo_box, img_w, img_h):
     x2 = xc + w / 2
     y2 = yc + h / 2
 
-    x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2)
+    x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2, img_w, img_h)
 
     return [x1, y1, x2, y2]
 
@@ -164,6 +163,13 @@ def main_function():
     missed_detection_img_dir = dest_root_dir / "missed_detections"
     missed_detection_img_dir.mkdir(parents=True, exist_ok=True)
 
+    false_positive_img_dir = dest_root_dir / "false_positives"
+    false_positive_img_dir.mkdir(parents=True, exist_ok=True)
+
+    mis_class_img_dir = dest_root_dir / "mis_classification"
+    mis_class_img_dir.mkdir(parents=True, exist_ok=True)
+
+
     print(f"--- Saving results and debug images to {dest_root_dir} ---\n")
 
     # --- Storage for final eval ---
@@ -235,7 +241,7 @@ def main_function():
 
             print(f"Individual Detection result: {det.tolist()}")
 
-            x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2)
+            x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2, img_w, img_h)
 
             crop = image[y1:y2, x1:x2]
 
@@ -267,7 +273,7 @@ def main_function():
             best_iou = 0
             best_idx = -1
 
-            for idx, gb in enumerate(gt_boxes):
+            for idx, (gb, gl) in enumerate(zip(gt_boxes, gt_labels)):
                 if idx in matched_gt:
                     continue
 
@@ -276,7 +282,7 @@ def main_function():
                     best_iou = iou
                     best_idx = idx
 
-                print(f"Best match computing: GT: {gt_labels[best_idx].item()} Pred: {pl} IOU: {iou}")
+                print(f"--- Matching each prediction to best ground truth bbox by IoU ---")
 
             #Append the GT label and predicted label to lists used later for classification metrics.
             if best_idx >= 0:
@@ -285,10 +291,13 @@ def main_function():
                 matched_gt.add(best_idx)
                 matched_pred.add(pred_idx)
 
-                print(f"Best match found! GT: {gt_labels[best_idx].item()} Pred: {pl} IOU: {best_iou}")
+                print(f"Best match found for Pred: {pl} -> GT: {gl} IOU: {best_iou}")
 
+                if(pl != gl):
+                    print(f"Mis-classification: Prediction label doesnt match with GT label")
+                    annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, mis_class_img_dir)
             else:
-                print(f"No best match found!")
+                print(f"No best match found for Pred: {pl}")
         
         # --- Handle missed detections (False Negatives) ---
         # For gt labels that are not matched, will be deemed as missed detection
@@ -305,6 +314,7 @@ def main_function():
                 y_true_all.append(MISSED_CLASS_ID)  # No GT object
                 y_pred_all.append(pl)               # Model predicted a class
 
+                annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, false_positive_img_dir)
 
     #Save results into .csv file
     df = pd.DataFrame({
@@ -312,11 +322,11 @@ def main_function():
         "y_pred": y_pred_all
     })
     df.to_csv(results_path, index=False)
-    print(f"Saved evaluation results to {results_path}")
+    print(f"\nSaved evaluation results to {results_path}")
 
     # --- Compute Precision, Recall, F1 ---
-    ALL_LABELS = list(range(NUM_CLASSES)) + [MISSED_CLASS_ID]
-    TARGET_NAMES = [f"Class {i}" for i in range(NUM_CLASSES)] + ["MISSED"]
+    ALL_LABELS = list(ID_TO_NAME.keys()) + [MISSED_CLASS_ID]
+    TARGET_NAMES = list(ID_TO_NAME.values()) + ["Background"]
 
     print(classification_report(
         y_true_all,
