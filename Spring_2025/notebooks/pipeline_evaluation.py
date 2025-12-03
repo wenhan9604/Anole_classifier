@@ -33,6 +33,20 @@ ID_TO_NAME = {0: "bark",
 
 #Helper function
 
+def clamp_coords(x1, y1, x2, y2):
+
+    x1 = int(round(x1))
+    y1 = int(round(y1))
+    x2 = int(round(x2))
+    y2 = int(round(y2))
+
+    x1 = max(0, min(x1, img_w - 1))
+    y1 = max(0, min(y1, img_h - 1))
+    x2 = max(0, min(x2, img_w - 1))
+    y2 = max(0, min(y2, img_h - 1))
+
+    return x1, y1, x2, y2
+
 # --- Helper: Convert YOLO to [x1, y1, x2, y2] ---
 def yolo_to_xyxy(yolo_box, img_w, img_h):
 
@@ -45,10 +59,7 @@ def yolo_to_xyxy(yolo_box, img_w, img_h):
     x2 = xc + w / 2
     y2 = yc + h / 2
 
-    x1 = max(0, x1)
-    y1 = max(0, y1)
-    x2 = min(x2, img_w - 1)
-    y2 = min(y2, img_h - 1)
+    x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2)
 
     return [x1, y1, x2, y2]
 
@@ -61,8 +72,8 @@ def compute_iou(boxA, boxB):
     interArea = max(0, xB - xA) * max(0, yB - yA) #Edge case of 0 intersection area 
     if interArea == 0:
         return 0.0
-    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
-    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]) # (x2 - x1) * (y2 - y1)
+    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]) 
     return interArea / float(boxAArea + boxBArea - interArea)
 
 def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name = "annotated", target_dir = "."):
@@ -213,29 +224,9 @@ def main_function():
 
             print(f"Individual Detection result: {det.tolist()}")
 
-            # RT-DETR returns BB coords that are beyond the image coord. Need to set it to be 0 < coord < 1.0
-            # x1 = max(0, x1)
-            # y1 = max(0, y1)
-            # x2 = min(1.0, x2)
-            # y2 = min(1.0, y2)
-
-            #Absolute coord because RT-DETR returns in normalized value
-            # x1 = x1 * img_w
-            # y1 = y1 * img_h
-            # x2 = x2 * img_w
-            # y2 = y2 * img_h
-
-            x1 = np.uint16(math.ceil(x1))
-            y1 = np.uint16(math.ceil(y1))
-            x2 = np.uint16(x2)
-            y2 = np.uint16(y2)
-
-            # print("tl_x")
-            # print(tl_x)
+            x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2)
 
             crop = image[y1:y2, x1:x2]
-
-            # crop = image.crop((x1, y1, x2, y2))
 
             print(f"Cropped image dimensions: {crop.shape}")
 
@@ -274,6 +265,8 @@ def main_function():
                     best_iou = iou
                     best_idx = idx
 
+                print(f"Best match computing: GT: {gt_labels[best_idx].item()} Pred: {pl} IOU: {iou}")
+
             #Append the GT label and predicted label to lists used later for classification metrics.
             if best_idx >= 0:
                 y_true_all.append(gt_labels[best_idx].item())
@@ -282,6 +275,9 @@ def main_function():
                 matched_pred.add(pred_idx)
 
                 print(f"Best match found! GT: {gt_labels[best_idx].item()} Pred: {pl} IOU: {best_iou}")
+
+            else:
+                print(f"No best match found!")
         
         # --- Handle missed detections (False Negatives) ---
         # For gt labels that are not matched, will be deemed as missed detection
