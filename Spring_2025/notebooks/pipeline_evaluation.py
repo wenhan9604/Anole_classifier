@@ -13,7 +13,7 @@ import cv2
 
 # --- Load models ---
 YOLO_MODEL_FILE_PATH = "./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt"
-SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base"
+SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base" # Put None for yolo-only evaluation
 
 # --- YOLO model config --- 
 NMS_IOU_THRESHOLD = 0.25
@@ -134,6 +134,17 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
     cv2.imwrite(str(save_path), annotated)
     print(f"Annotated image saved to: {save_path}")
 
+def save_image(img_rgb, img_name = "annotated", target_dir = "."):
+
+    # Work in BGR for OpenCV drawing
+    img_copy = image_rgb.copy()
+    img_copy = cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR) #cv2.imwrite() requires BGR
+
+    out_name = Path(img_name).stem + "_annotated.jpg"
+    save_path = target_dir / out_name
+    cv2.imwrite(str(save_path), img_copy)
+    print(f"Cropped image saved to: {save_path}")
+
 def main_function():
 
     print(f"--- EVALUATION PIPELINE ---")
@@ -142,13 +153,19 @@ def main_function():
     print(f"EVAL Config: EVAL_IOU_THRESHOLD: {EVAL_IOU_THRESHOLD} \n")
 
     print(f"--- LOADING MODELS ---")
-    print(f"YOLO_MODEL_FILE_PATH: {YOLO_MODEL_FILE_PATH} \n SWIN_MODEL_FILE_PATH; {SWIN_MODEL_FILE_PATH} \n")
+    print(f"YOLO_MODEL_FILE_PATH: {YOLO_MODEL_FILE_PATH} \n")
+
+    if (SWIN_MODEL_FILE_PATH):
+        print(f"SWIN_MODEL_FILE_PATH; {SWIN_MODEL_FILE_PATH} \n")
+
 
     # --- Load models ---
     yolo_model = YOLO(YOLO_MODEL_FILE_PATH)
-    swin_model = SwinForImageClassification.from_pretrained(SWIN_MODEL_FILE_PATH)
-    processor = AutoImageProcessor.from_pretrained(SWIN_MODEL_FILE_PATH)
-    swin_model.eval()
+
+    if (SWIN_MODEL_FILE_PATH):
+        swin_model = SwinForImageClassification.from_pretrained(SWIN_MODEL_FILE_PATH)
+        processor = AutoImageProcessor.from_pretrained(SWIN_MODEL_FILE_PATH)
+        swin_model.eval()
 
     print(f"--- COMPLETED LOADING MODELS ---")
 
@@ -170,6 +187,9 @@ def main_function():
     mis_class_img_dir = dest_root_dir / "mis_classification"
     mis_class_img_dir.mkdir(parents=True, exist_ok=True)
 
+    if (SWIN_MODEL_FILE_PATH):
+        cropped_img_dir = dest_root_dir / "cropped_img"
+        cropped_img_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"--- Saving results and debug images to {dest_root_dir} ---\n")
 
@@ -239,26 +259,33 @@ def main_function():
         pred_boxes, pred_labels, pred_conf = [], [], []
 
         for det in boxes:
-            x1, y1, x2, y2, conf, _ = det.tolist()
+
+            pred_label = None
+            x1, y1, x2, y2, conf, yolo_pred_label = det.tolist()
 
             print(f"Individual Detection result: {det.tolist()}")
 
             x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2, img_w, img_h)
 
-            crop = image_RGB[y1:y2, x1:x2]
+            if (SWIN_MODEL_FILE_PATH):
 
-            print(f"Cropped image dimensions: {crop.shape}")
+                crop = image_RGB[y1:y2, x1:x2]
 
-            inputs = processor(images=crop, return_tensors="pt")
-            with torch.no_grad():
-                logits = swin_model(**inputs).logits
-                swin_class = logits.argmax(dim=1).item()
+                save_image(crop, img_name, cropped_img_dir)
 
-            print(f"Prediction bb: {x1} {y1} {x2} {y2}, Conf: {conf:.3f}, Swin Class: {swin_class}")
+                inputs = processor(images=crop, return_tensors="pt")
+                with torch.no_grad():
+                    logits = swin_model(**inputs).logits
+                    pred_label = logits.argmax(dim=1).item()
+
+            else:
+                pred_label = yolo_pred_label
+
+            print(f"Prediction bbox: {x1} {y1} {x2} {y2}, Conf: {conf:.3f}, Pred_label: {ID_TO_NAME[pred_label]}")
 
             pred_boxes.append([x1, y1, x2, y2])
             pred_conf.append(conf)
-            pred_labels.append(swin_class)
+            pred_labels.append(pred_label)
 
         # Annotate image with ground truth and pred labels and save image
 
