@@ -85,6 +85,7 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
 
     # Work in BGR for OpenCV drawing
     annotated = image_rgb.copy()
+    annotated = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR) #cv2.imwrite() requires BGR
 
     # Draw GT boxes (green)
     for box, cls_id in zip(gt_boxes.tolist(), gt_labels.tolist()):
@@ -193,8 +194,9 @@ def main_function():
 
         # print(f"Loaded image file: {image_path} \n loaded label file: {label_path}")
 
-        image = cv2.imread(image_path)
-        img_h, img_w, _ = image.shape
+        image_BGR = cv2.imread(image_path)
+        image_RGB = cv2.cvtColor(image_BGR, cv2.COLOR_BGR2RGB)
+        img_h, img_w, _ = image_RGB.shape
 
         # --- Load GT ---
         # Loads each instance of target found in image 
@@ -216,7 +218,7 @@ def main_function():
 
         # --- Detection + Cropping + Classification ---
         results = yolo_model(
-            image,
+            image_RGB,
             conf=CONF_THRESH,   # confidence threshold
             iou=NMS_IOU_THRESHOLD,     # IoU threshold for NMS
             max_det=TOP_K, # max detections per image
@@ -243,7 +245,7 @@ def main_function():
 
             x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2, img_w, img_h)
 
-            crop = image[y1:y2, x1:x2]
+            crop = image_RGB[y1:y2, x1:x2]
 
             print(f"Cropped image dimensions: {crop.shape}")
 
@@ -260,7 +262,7 @@ def main_function():
 
         # Annotate image with ground truth and pred labels and save image
 
-        annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, annotated_img_dir)
+        annotate_and_save_image(image_RGB, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, annotated_img_dir)
 
         # --- Match predictions to GT using IoU ---
         # This block contains logic that matches each prediction to each ground truth (gt) label
@@ -295,7 +297,7 @@ def main_function():
 
                 if(pl != gl):
                     print(f"Mis-classification: Prediction label doesnt match with GT label")
-                    annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, mis_class_img_dir)
+                    annotate_and_save_image(image_RGB, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, mis_class_img_dir)
             else:
                 print(f"No best match found for Pred: {ID_TO_NAME[int(pl)]}")
         
@@ -306,7 +308,7 @@ def main_function():
                 y_true_all.append(gt_label.item())   # Ground truth exists
                 y_pred_all.append(MISSED_CLASS_ID)   # But no prediction found
 
-                annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, missed_detection_img_dir)
+                annotate_and_save_image(image_RGB, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, missed_detection_img_dir)
 
         # --- Handle false positives (extra predictions) ---
         for pred_idx, pl in enumerate(pred_labels):
@@ -314,7 +316,7 @@ def main_function():
                 y_true_all.append(MISSED_CLASS_ID)  # No GT object
                 y_pred_all.append(pl)               # Model predicted a class
 
-                annotate_and_save_image(image, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, false_positive_img_dir)
+                annotate_and_save_image(image_RGB, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name, false_positive_img_dir)
 
     #Save results into .csv file
     df = pd.DataFrame({
