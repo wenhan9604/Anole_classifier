@@ -11,15 +11,6 @@ import numpy as np
 import math
 import cv2 
 
-# --- Load models ---
-YOLO_MODEL_FILE_PATH = "./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt"
-SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base" # Put None for yolo-only evaluation
-
-# --- YOLO model config --- 
-NMS_IOU_THRESHOLD = 0.25
-CONF_THRESH = 0.5
-TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
-
 # --- Evaluation Config ---
 DEST_FOLDER_PATH = "./inference"
 INPUT_IMAGE_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/images"
@@ -145,26 +136,30 @@ def save_image(img_rgb, img_name = "annotated", target_dir = "."):
     cv2.imwrite(str(save_path), img_copy)
     print(f"Cropped image saved to: {save_path}")
 
-def main_function():
+def main_function(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_thresh=0.25, conf_thresh=0.5,top_k=5):
+
+    if (yolo_model_file_path is None or os.path.exists(swin_model_file_path)):
+        print(f"yolo model file path cannot be found. yolo_model_file_path: {yolo_model_file_path}")
+        return
 
     print(f"--- EVALUATION PIPELINE ---")
-    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {NMS_IOU_THRESHOLD} \n CONF_THRESH: {CONF_THRESH} \n MAX_DETECTION: {TOP_K} \n")
+    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {nms_iou_thresh} \n CONF_THRESH: {conf_thresh} \n MAX_DETECTION: {top_k} \n")
 
     print(f"EVAL Config: EVAL_IOU_THRESHOLD: {EVAL_IOU_THRESHOLD} \n")
 
     print(f"--- LOADING MODELS ---")
-    print(f"YOLO_MODEL_FILE_PATH: {YOLO_MODEL_FILE_PATH} \n")
+    print(f"YOLO_MODEL_FILE_PATH: {yolo_model_file_path} \n")
 
-    if (SWIN_MODEL_FILE_PATH):
-        print(f"SWIN_MODEL_FILE_PATH; {SWIN_MODEL_FILE_PATH} \n")
+    if (swin_model_file_path):
+        print(f"SWIN_MODEL_FILE_PATH; {swin_model_file_path} \n")
 
 
     # --- Load models ---
-    yolo_model = YOLO(YOLO_MODEL_FILE_PATH)
+    yolo_model = YOLO(yolo_model_file_path)
 
-    if (SWIN_MODEL_FILE_PATH):
-        swin_model = SwinForImageClassification.from_pretrained(SWIN_MODEL_FILE_PATH)
-        processor = AutoImageProcessor.from_pretrained(SWIN_MODEL_FILE_PATH)
+    if (swin_model_file_path):
+        swin_model = SwinForImageClassification.from_pretrained(swin_model_file_path)
+        processor = AutoImageProcessor.from_pretrained(swin_model_file_path)
         swin_model.eval()
 
     print(f"--- COMPLETED LOADING MODELS ---")
@@ -187,7 +182,7 @@ def main_function():
     mis_class_img_dir = dest_root_dir / "mis_classification"
     mis_class_img_dir.mkdir(parents=True, exist_ok=True)
 
-    if (SWIN_MODEL_FILE_PATH):
+    if (swin_model_file_path):
         cropped_img_dir = dest_root_dir / "cropped_img"
         cropped_img_dir.mkdir(parents=True, exist_ok=True)
 
@@ -239,9 +234,9 @@ def main_function():
         # --- Detection + Cropping + Classification ---
         results = yolo_model(
             image_RGB,
-            conf=CONF_THRESH,   # confidence threshold
-            iou=NMS_IOU_THRESHOLD,     # IoU threshold for NMS
-            max_det=TOP_K, # max detections per image
+            conf=conf_thresh,   # confidence threshold
+            iou=nms_iou_thresh,     # IoU threshold for NMS
+            max_det=top_k, # max detections per image
         )[0]
 
         boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
@@ -249,12 +244,12 @@ def main_function():
         # print(f"Raw Detection result: {boxes}")
 
         # --- Confidence filtering ---
-        boxes = boxes[boxes[:, 4] >= CONF_THRESH]
+        boxes = boxes[boxes[:, 4] >= conf_thresh]
         boxes = boxes[boxes[:, 4].argsort(descending=True)]
 
         # --- Limit to top K ---
-        if TOP_K is not None:
-            boxes = boxes[:TOP_K]
+        if top_k is not None:
+            boxes = boxes[:top_k]
 
         pred_boxes, pred_labels, pred_conf = [], [], []
 
@@ -267,7 +262,7 @@ def main_function():
 
             x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2, img_w, img_h)
 
-            if (SWIN_MODEL_FILE_PATH):
+            if (swin_model_file_path):
 
                 crop = image_RGB[y1:y2, x1:x2]
 
@@ -368,6 +363,7 @@ def main_function():
 
 if __name__ == "__main__":
 
-    main_function()
+    main_function(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
+    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,conf_thresh=0.5, top_k=5)
 
 
