@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import math
 import cv2 
+from collections import defaultdict
 
 # --- Evaluation Config ---
 DEST_FOLDER_PATH = "./inference"
@@ -68,6 +69,25 @@ def compute_iou(boxA, boxB):
     boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]) # (x2 - x1) * (y2 - y1)
     boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]) 
     return interArea / float(boxAArea + boxBArea - interArea)
+
+def voc_ap(rec, prec):
+    """
+    Compute AP using the VOC 2010+ style:
+    integration over the precision–recall curve.
+    rec, prec are numpy arrays.
+    """
+    # Append sentinel values at both ends
+    mrec = np.concatenate(([0.0], rec, [1.0]))
+    mpre = np.concatenate(([0.0], prec, [0.0]))
+
+    # Make precision monotonically decreasing
+    for i in range(mpre.size - 1, 0, -1):
+        mpre[i - 1] = max(mpre[i - 1], mpre[i])
+
+    # Compute area under curve
+    idx = np.where(mrec[1:] != mrec[:-1])[0]
+    ap = np.sum((mrec[idx + 1] - mrec[idx]) * mpre[idx + 1])
+    return ap
 
 def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name = "annotated", target_dir = "."):
 # ============================================================
@@ -192,6 +212,11 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
     y_true_all = []
     y_pred_all = []
 
+    # --- Storage for detection mAP computation ---
+    # Group all GTs and predictions by class across the whole dataset.
+    gt_by_cls = defaultdict(list)    # cls_id -> list of {"image_id", "box"}
+    pred_by_cls = defaultdict(list)  # cls_id -> list of {"image_id", "box", "conf"}
+
     if not os.path.isdir(INPUT_IMAGE_FOLDER) or not os.path.isdir(INPUT_LABEL_FOLDER):
         
         print(f"Application unable to find image/label folder! image_folder: {INPUT_IMAGE_FOLDER}")
@@ -227,6 +252,11 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
                 print(f"\nLabel File content (GT): {parts}")
                 print(f"GT Box (yolo to xyxy): {box}")
 
+                # For mAP: store GT per class
+                gt_by_cls[cls_id].append({
+                    "image_id": img_name,
+                    "box": np.array(box, dtype=float)
+                })
 
         gt_boxes = torch.tensor(gt_boxes)
         gt_labels = torch.tensor(gt_labels)
@@ -291,6 +321,13 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
             pred_boxes.append([x1, y1, x2, y2])
             pred_conf.append(conf)
             pred_labels.append(pred_label)
+
+            # For mAP: store prediction per class
+            pred_by_cls[int(pred_label)].append({
+                "image_id": img_name,
+                "box": np.array([x1, y1, x2, y2], dtype=float),
+                "conf": float(conf)
+            })
 
         # Annotate image with ground truth and pred labels and save image
 
@@ -369,6 +406,104 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
         target_names=TARGET_NAMES,
         zero_division=0
     ))
+
+    # ----------------------------------------------------
+    #  Detection mAP evaluation (COCO-style IoU thresholds)
+    # ----------------------------------------------------
+    print("\n--- Detection mAP Evaluation ---")
+
+    # IoU thresholds for COCO-style eval: 0.50:0.95 with step 0.05
+    iou_thresholds = np.arange(0.50, 0.96, 0.05)
+
+    aps_by_thr = {thr: {} for thr in iou_thresholds}
+    mAP_by_thr = {}
+
+    # Loop over IoU thresholds
+    for thr in iou_thresholds:
+        print(f"\nEvaluating AP at IoU = {thr:.2f}")
+        for cls_id, cls_name in ID_TO_NAME.items():
+            gts = gt_by_cls.get(cls_id, [])
+            preds = pred_by_cls.get(cls_id, [])
+
+            npos = len(gts)
+            if npos == 0:
+                print(f"  Class '{cls_name}' (id={cls_id}): no GT boxes, skipping AP.")
+                aps_by_thr[thr][cls_id] = np.nan
+                continue
+
+            # Map: image_id -> list of GT indices for this class
+            gt_img_map = {}
+            for i, g in enumerate(gts):
+                img_id = g["image_id"]
+                gt_img_map.setdefault(img_id, [])
+                gt_img_map[img_id].append(i)
+
+            # Track which GT boxes are already matched
+            gt_used = [False] * len(gts)
+
+            # Sort predictions by confidence (descending)
+            preds_sorted = sorted(preds, key=lambda x: x["conf"], reverse=True)
+
+            tp = np.zeros(len(preds_sorted))
+            fp = np.zeros(len(preds_sorted))
+
+            for i, p in enumerate(preds_sorted):
+                img_id = p["image_id"]
+                box_p = p["box"]
+
+                if img_id not in gt_img_map:
+                    # No GT of this class in this image
+                    fp[i] = 1
+                    continue
+
+                best_iou = 0.0
+                best_gt_idx = -1
+                for gt_idx in gt_img_map[img_id]:
+                    if gt_used[gt_idx]:
+                        continue
+                    box_g = gts[gt_idx]["box"]
+                    iou = compute_iou(box_p, box_g)
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_gt_idx = gt_idx
+
+                if best_iou >= thr and best_gt_idx >= 0:
+                    # True positive
+                    tp[i] = 1
+                    gt_used[best_gt_idx] = True
+                else:
+                    # False positive
+                    fp[i] = 1
+
+            # Cumulative sums
+            tp_cum = np.cumsum(tp)
+            fp_cum = np.cumsum(fp)
+
+            eps = 1e-8
+            rec = tp_cum / (npos + eps)
+            prec = tp_cum / (tp_cum + fp_cum + eps)
+
+            ap = voc_ap(rec, prec)
+            aps_by_thr[thr][cls_id] = ap
+            print(f"  AP for class '{cls_name}' (id={cls_id}) at IoU={thr:.2f}: {ap:.4f}")
+
+        # mAP at this IoU = mean over valid classes
+        ap_values = [v for v in aps_by_thr[thr].values() if not np.isnan(v)]
+        if len(ap_values) > 0:
+            mAP_by_thr[thr] = float(np.mean(ap_values))
+        else:
+            mAP_by_thr[thr] = 0.0
+
+    # Extract key metrics
+    mAP_50 = mAP_by_thr.get(0.50, 0.0)
+    mAP_75 = mAP_by_thr.get(0.75, 0.0)
+    mAP_50_95 = float(np.mean(list(mAP_by_thr.values()))) if len(mAP_by_thr) > 0 else 0.0
+
+    print("\n--- Summary mAP ---")
+    print(f"mAP@0.50      : {mAP_50:.4f}")
+    print(f"mAP@0.75      : {mAP_75:.4f}")
+    print(f"mAP@0.50:0.95 : {mAP_50_95:.4f}")
+
 
 
 if __name__ == "__main__":
