@@ -128,7 +128,7 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
 def save_image(img_rgb, img_name = "annotated", target_dir = "."):
 
     # Work in BGR for OpenCV drawing
-    img_copy = image_rgb.copy()
+    img_copy = img_rgb.copy()
     img_copy = cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR) #cv2.imwrite() requires BGR
 
     out_name = Path(img_name).stem + "_annotated.jpg"
@@ -136,9 +136,9 @@ def save_image(img_rgb, img_name = "annotated", target_dir = "."):
     cv2.imwrite(str(save_path), img_copy)
     print(f"Cropped image saved to: {save_path}")
 
-def main_function(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_thresh=0.25, conf_thresh=0.5,top_k=5):
+def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_thresh=0.25, conf_thresh=0.5,top_k=5):
 
-    if (yolo_model_file_path is None or os.path.exists(swin_model_file_path)):
+    if (yolo_model_file_path is None or not os.path.exists(yolo_model_file_path)):
         print(f"yolo model file path cannot be found. yolo_model_file_path: {yolo_model_file_path}")
         return
 
@@ -207,7 +207,7 @@ def main_function(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_
         if not os.path.exists(label_path):
             continue
 
-        # print(f"Loaded image file: {image_path} \n loaded label file: {label_path}")
+        print(f"\n\n\n --- Analyzing Image --- \nLoaded image file: {image_path} \nLoaded label file: {label_path}")
 
         image_BGR = cv2.imread(image_path)
         image_RGB = cv2.cvtColor(image_BGR, cv2.COLOR_BGR2RGB)
@@ -224,24 +224,34 @@ def main_function(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_
                 gt_boxes.append(box)
                 gt_labels.append(cls_id)
 
-                print(f"\n\nLabel Path: {label_path}. Parts: {parts}")
-                print(f"yolo converted box: {box}")
+                print(f"\nLabel File content (GT): {parts}")
+                print(f"GT Box (yolo to xyxy): {box}")
 
 
         gt_boxes = torch.tensor(gt_boxes)
         gt_labels = torch.tensor(gt_labels)
 
+        print(f"\n--- PIpeline inference ---")
+
         # --- Detection + Cropping + Classification ---
-        results = yolo_model(
+        # results = yolo_model(
+        #     image_RGB,
+        #     conf=conf_thresh,   # confidence threshold
+        #     iou=nms_iou_thresh,     # IoU threshold for NMS
+        #     max_det=top_k, # max detections per image
+        # )[0]
+
+        results = yolo_model.predict(
             image_RGB,
             conf=conf_thresh,   # confidence threshold
             iou=nms_iou_thresh,     # IoU threshold for NMS
             max_det=top_k, # max detections per image
+            agnostic_nms=True
         )[0]
 
         boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
 
-        # print(f"Raw Detection result: {boxes}")
+        print(f"Raw Detection result: {boxes}")
 
         # --- Confidence filtering ---
         boxes = boxes[boxes[:, 4] >= conf_thresh]
@@ -306,7 +316,7 @@ def main_function(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_
                     best_iou = iou
                     best_idx = idx
 
-                print(f"--- Matching each prediction to best ground truth bbox by IoU ---")
+                print(f"\n--- Matching each prediction to best ground truth bbox by IoU ---")
 
             #Append the GT label and predicted label to lists used later for classification metrics.
             if best_idx >= 0:
@@ -363,7 +373,7 @@ def main_function(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_
 
 if __name__ == "__main__":
 
-    main_function(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
+    evaluate_performance(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
     swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,conf_thresh=0.5, top_k=5)
 
 
