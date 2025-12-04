@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import math
 import cv2 
+import matplotlib.pyplot as plt
 from collections import defaultdict
 
 # --- Evaluation Config ---
@@ -88,6 +89,70 @@ def voc_ap(rec, prec):
     idx = np.where(mrec[1:] != mrec[:-1])[0]
     ap = np.sum((mrec[idx + 1] - mrec[idx]) * mpre[idx + 1])
     return ap
+
+def compute_pr_for_class(cls_id, iou_thr, gt_by_cls, pred_by_cls):
+    """
+    Compute precision-recall arrays for a single class at a given IoU threshold.
+    Returns: rec, prec (both numpy arrays of same length)
+    """
+    gts = gt_by_cls.get(cls_id, [])
+    preds = pred_by_cls.get(cls_id, [])
+
+    npos = len(gts)
+    if npos == 0 or len(preds) == 0:
+        # No GTs or no predictions for this class => undefined PR
+        return np.array([0.0]), np.array([0.0])
+
+    # Map image_id -> list of GT indices for this class
+    gt_img_map = {}
+    for i, g in enumerate(gts):
+        img_id = g["image_id"]
+        gt_img_map.setdefault(img_id, [])
+        gt_img_map[img_id].append(i)
+
+    # Track which GT boxes are already matched
+    gt_used = [False] * len(gts)
+
+    # Sort predictions by confidence descending
+    preds_sorted = sorted(preds, key=lambda x: x["conf"], reverse=True)
+
+    tp = np.zeros(len(preds_sorted))
+    fp = np.zeros(len(preds_sorted))
+
+    for i, p in enumerate(preds_sorted):
+        img_id = p["image_id"]
+        box_p = p["box"]
+
+        if img_id not in gt_img_map:
+            fp[i] = 1
+            continue
+
+        best_iou = 0.0
+        best_gt_idx = -1
+        for gt_idx in gt_img_map[img_id]:
+            if gt_used[gt_idx]:
+                continue
+            box_g = gts[gt_idx]["box"]
+            iou = compute_iou(box_p, box_g)
+            if iou > best_iou:
+                best_iou = iou
+                best_gt_idx = gt_idx
+
+        if best_iou >= iou_thr and best_gt_idx >= 0:
+            tp[i] = 1
+            gt_used[best_gt_idx] = True
+        else:
+            fp[i] = 1
+
+    tp_cum = np.cumsum(tp)
+    fp_cum = np.cumsum(fp)
+
+    eps = 1e-8
+    rec = tp_cum / (npos + eps)
+    prec = tp_cum / (tp_cum + fp_cum + eps)
+
+    return rec, prec
+
 
 def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name = "annotated", target_dir = "."):
 # ============================================================
@@ -413,7 +478,7 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
     print("\n--- Detection mAP Evaluation ---")
 
     # IoU thresholds for COCO-style eval: 0.50:0.95 with step 0.05
-    iou_thresholds = np.arange(0.50, 0.96, 0.05)
+    iou_thresholds = [round(t, 2) for t in np.arange(0.50, 0.96, 0.05)]
 
     aps_by_thr = {thr: {} for thr in iou_thresholds}
     mAP_by_thr = {}
@@ -503,6 +568,41 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
     print(f"mAP@0.50      : {mAP_50:.4f}")
     print(f"mAP@0.75      : {mAP_75:.4f}")
     print(f"mAP@0.50:0.95 : {mAP_50_95:.4f}")
+
+    # ----------------------------------------------------
+    #  Precision-Recall Curves at a chosen IoU threshold
+    # ----------------------------------------------------
+    pr_iou = 0.50   # or 0.75, or EVAL_IOU_THRESHOLD, up to you
+
+    print(f"\n--- Plotting Precision-Recall Curves at IoU = {pr_iou:.2f} ---")
+
+    plt.figure(figsize=(7, 6))
+
+    for cls_id, cls_name in ID_TO_NAME.items():
+        rec, prec = compute_pr_for_class(cls_id, pr_iou, gt_by_cls, pred_by_cls)
+
+        # Some classes may have trivial curves; skip if no useful data
+        if len(rec) <= 1 and len(prec) <= 1:
+            print(f"  Class '{cls_name}' has insufficient data for PR curve, skipping.")
+            continue
+
+        plt.plot(rec, prec, label=f"{cls_name} (id={cls_id})")
+
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title(f"Precision-Recall Curves (IoU = {pr_iou:.2f})")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.grid(True)
+    plt.legend()
+
+    pr_save_path = dest_root_dir / f"pr_curves_iou_{int(pr_iou*100):02d}.png"
+    plt.tight_layout()
+    plt.savefig(pr_save_path, dpi=200)
+    plt.close()
+
+    print(f"Saved Precision-Recall curves to: {pr_save_path}")
+
 
 
 
