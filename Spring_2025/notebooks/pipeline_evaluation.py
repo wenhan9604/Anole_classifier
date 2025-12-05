@@ -18,7 +18,6 @@ DEST_FOLDER_PATH = "./inference"
 INPUT_IMAGE_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/images"
 INPUT_LABEL_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
-EVAL_IOU_THRESHOLD = 0.2
 
 ID_TO_NAME = {0: "bark", 
                 1: "brown",
@@ -221,16 +220,26 @@ def save_image(img_rgb, img_name = "annotated", target_dir = "."):
     cv2.imwrite(str(save_path), img_copy)
     print(f"Cropped image saved to: {save_path}")
 
-def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, nms_iou_thresh=0.25, conf_thresh=0.5,top_k=5):
+# eval_iou_thresh - Affects f1-score, precision, recall and confusion matrix. Standardize at 0.5, aligns with PASCAL VOC
+def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, classification_conf_thresh=0.5, mAP_conf_thresh = 0.001, nms_iou_thresh=0.7, eval_iou_thresh = 0.5, top_k=5):
+    """
+    Parameters:
+        classification_conf_thresh (float): Filters predictions lower than this threshold. Affects calculation for confusion matrix; f1-score, precision, recall  
+        mAP_conf_thresh (float): Filters prediction lower than this threshold. Affects calculation for mAP. Use 0.001 
+        nms_iou_thresh (float): Controls how aggressively overlapping predictions are suppressed. Rec. range: 0.5–0.7
+        eval_iou_thresh (float): Filters for pred and GT bbox overlap. Affects f1-score, precision, recall and confusion matrix. Set at 0.5, aligns with PASCAL VOC 
+        top_k (int): Defines the number of prediction from detection model for 1 image.
+
+    """
 
     if (yolo_model_file_path is None or not os.path.exists(yolo_model_file_path)):
         print(f"yolo model file path cannot be found. yolo_model_file_path: {yolo_model_file_path}")
         return
 
     print(f"--- EVALUATION PIPELINE ---")
-    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {nms_iou_thresh} \n CONF_THRESH: {conf_thresh} \n MAX_DETECTION: {top_k} \n")
+    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {nms_iou_thresh} \n CONF_THRESH: {classification_conf_thresh} \n MAX_DETECTION: {top_k} \n")
 
-    print(f"EVAL Config: EVAL_IOU_THRESHOLD: {EVAL_IOU_THRESHOLD} \n")
+    print(f"EVAL Config: EVAL_IOU_THRESHOLD: {eval_iou_thresh} \n")
 
     print(f"--- LOADING MODELS ---")
     print(f"YOLO_MODEL_FILE_PATH: {yolo_model_file_path} \n")
@@ -326,19 +335,12 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
         gt_boxes = torch.tensor(gt_boxes)
         gt_labels = torch.tensor(gt_labels)
 
-        print(f"\n--- PIpeline inference ---")
+        print(f"\n--- Pipeline inference ---")
 
         # --- Detection + Cropping + Classification ---
-        # results = yolo_model(
-        #     image_RGB,
-        #     conf=conf_thresh,   # confidence threshold
-        #     iou=nms_iou_thresh,     # IoU threshold for NMS
-        #     max_det=top_k, # max detections per image
-        # )[0]
-
         results = yolo_model.predict(
             image_RGB,
-            conf=conf_thresh,   # confidence threshold
+            conf=classification_conf_thresh,   # confidence threshold
             iou=nms_iou_thresh,     # IoU threshold for NMS
             max_det=top_k, # max detections per image
             agnostic_nms=True
@@ -349,7 +351,7 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
         print(f"Raw Detection result: {boxes}")
 
         # --- Confidence filtering ---
-        boxes = boxes[boxes[:, 4] >= conf_thresh]
+        boxes = boxes[boxes[:, 4] >= classification_conf_thresh]
         boxes = boxes[boxes[:, 4].argsort(descending=True)]
 
         # --- Limit to top K ---
@@ -414,7 +416,7 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
                     continue
 
                 iou = compute_iou(pb, gb.tolist()) 
-                if iou >= EVAL_IOU_THRESHOLD and iou > best_iou: 
+                if iou >= eval_iou_thresh and iou > best_iou: 
                     best_iou = iou
                     best_idx = idx
 
@@ -609,6 +611,6 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, n
 if __name__ == "__main__":
 
     evaluate_performance(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
-    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,conf_thresh=0.5, top_k=5)
+    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,classification_conf_thresh=0.5, top_k=5)
 
 
