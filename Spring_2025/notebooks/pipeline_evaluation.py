@@ -221,11 +221,10 @@ def save_image(img_rgb, img_name = "annotated", target_dir = "."):
     print(f"Cropped image saved to: {save_path}")
 
 # eval_iou_thresh - Affects f1-score, precision, recall and confusion matrix. Standardize at 0.5, aligns with PASCAL VOC
-def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, classification_conf_thresh=0.5, mAP_conf_thresh = 0.001, nms_iou_thresh=0.7, eval_iou_thresh = 0.5, top_k=5):
+def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, classification_conf_thresh=0.5, nms_iou_thresh=0.7, eval_iou_thresh = 0.5, top_k=5):
     """
     Parameters:
         classification_conf_thresh (float): Filters predictions lower than this threshold. Affects calculation for confusion matrix; f1-score, precision, recall  
-        mAP_conf_thresh (float): Filters prediction lower than this threshold. Affects calculation for mAP. Use 0.001 
         nms_iou_thresh (float): Controls how aggressively overlapping predictions are suppressed. Rec. range: 0.5–0.7
         eval_iou_thresh (float): Filters for pred and GT bbox overlap. Affects f1-score, precision, recall and confusion matrix. Set at 0.5, aligns with PASCAL VOC 
         top_k (int): Defines the number of prediction from detection model for 1 image.
@@ -611,6 +610,6 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, c
 if __name__ == "__main__":
 
     evaluate_performance(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
-    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,classification_conf_thresh=0.5, top_k=5)
+    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,classification_conf_thresh=0.5, eval_iou_thresh = 0.5,top_k=5)
 
 
