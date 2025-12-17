@@ -221,10 +221,10 @@ def save_image(img_rgb, img_name = "annotated", target_dir = "."):
     print(f"Cropped image saved to: {save_path}")
 
 # eval_iou_thresh - Affects f1-score, precision, recall and confusion matrix. Standardize at 0.5, aligns with PASCAL VOC
-def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, classification_conf_thresh=0.5, nms_iou_thresh=0.7, eval_iou_thresh = 0.5, top_k=5):
+def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, det_conf_thresh=0.5, nms_iou_thresh=0.7, eval_iou_thresh = 0.5, top_k=5):
     """
     Parameters:
-        classification_conf_thresh (float): Filters predictions lower than this threshold. Affects calculation for confusion matrix; f1-score, precision, recall  
+        det_conf_thresh (float): Filters predictions lower than this threshold.  
         nms_iou_thresh (float): Controls how aggressively overlapping predictions are suppressed. Rec. range: 0.5–0.7
         eval_iou_thresh (float): Filters for pred and GT bbox overlap. Affects f1-score, precision, recall and confusion matrix. Set at 0.5, aligns with PASCAL VOC 
         top_k (int): Defines the number of prediction from detection model for 1 image.
@@ -236,7 +236,7 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, c
         return
 
     print(f"--- EVALUATION PIPELINE ---")
-    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {nms_iou_thresh} \n CONF_THRESH: {classification_conf_thresh} \n MAX_DETECTION: {top_k} \n")
+    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {nms_iou_thresh} \n CONF_THRESH: {det_conf_thresh} \n MAX_DETECTION: {top_k} \n")
 
     print(f"EVAL Config: EVAL_IOU_THRESHOLD: {eval_iou_thresh} \n")
 
@@ -339,7 +339,7 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, c
         # --- Detection + Cropping + Classification ---
         results = yolo_model.predict(
             image_RGB,
-            conf=classification_conf_thresh,   # confidence threshold
+            conf=det_conf_thresh,   # confidence threshold
             iou=nms_iou_thresh,     # IoU threshold for NMS
             max_det=top_k, # max detections per image
             agnostic_nms=True
@@ -350,7 +350,7 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, c
         print(f"Raw Detection result: {boxes}")
 
         # --- Confidence filtering ---
-        boxes = boxes[boxes[:, 4] >= classification_conf_thresh]
+        boxes = boxes[boxes[:, 4] >= det_conf_thresh]
         boxes = boxes[boxes[:, 4].argsort(descending=True)]
 
         # --- Limit to top K ---
@@ -610,6 +610,6 @@ def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, c
 if __name__ == "__main__":
 
     evaluate_performance(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
-    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base", nms_iou_thresh=0.25,classification_conf_thresh=0.5, eval_iou_thresh = 0.5,top_k=5)
+    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
 
 
