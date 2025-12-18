@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Tuple
 from io import BytesIO
 from PIL import Image
 
+# Cached model references (matching pipeline_evaluation.py structure)
 _yolo = None
 _swin = None
 _processor = None
@@ -29,29 +30,47 @@ def _get_model_paths() -> Tuple[str, str]:
     - CLASSIFICATION_MODEL_ID
     Defaults based on Spring_2025/pipeline_evaluation.py
     """
-    # Priority 1: explicit env var
+    # Detection weights path resolution
     det_env = os.getenv("DETECTION_WEIGHTS_PATH")
     if det_env:
         det = det_env
     else:
-        # Priority 2: absolute path based on user's specified location
+        # Check absolute path first (matching pipeline_evaluation.py structure)
         abs_candidate = \
             "/Users/niralverma/Anole_classifier/Spring_2025/runs/detect/train_yolov8n_v2/weights/best.pt"
         if os.path.exists(abs_candidate):
             det = abs_candidate
         else:
-            # Priority 3: repo-relative default mirroring Spring_2025 script
+            # Fallback to repo-relative path
             det = os.path.join(
                 "Spring_2025", "runs", "detect", "train_yolov8n_v2", "weights", "best.pt"
             )
-    clf = os.getenv(
-        "CLASSIFICATION_MODEL_ID",
-        "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base",
-    )
+
+    # Classification model path resolution (matching pipeline_evaluation.py)
+    clf_env = os.getenv("CLASSIFICATION_MODEL_ID")
+    if clf_env:
+        clf = clf_env
+    else:
+        # Check local path first (as in pipeline_evaluation.py)
+        local_swin_path = "/Users/niralverma/Anole_classifier/Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base"
+        if os.path.exists(local_swin_path) and os.listdir(local_swin_path):
+            clf = local_swin_path
+        else:
+            # Fallback to HuggingFace model ID (same name as in pipeline_evaluation.py)
+            clf = "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base"
+
     return det, clf
 
 
 def _load_models() -> None:
+    """Load YOLO and Swin models, caching them for reuse.
+
+    Matches pipeline_evaluation.py:
+        yolo_model = YOLO("./runs/detect/train_yolov8n_v2/weights/best.pt")
+        swin_model = SwinForImageClassification.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
+        processor = AutoImageProcessor.from_pretrained("swin-base-patch4-window12-384-finetuned-lizard-class-swin-base")
+        swin_model.eval()
+    """
     global _yolo, _swin, _processor
     if _yolo is not None and _swin is not None and _processor is not None:
         return
@@ -66,12 +85,14 @@ def _load_models() -> None:
         ) from e
 
     det_path, clf_id = _get_model_paths()
+
+    # Check detection weights exist
     if not os.path.exists(det_path):  # pragma: no cover
         raise FileNotFoundError(
             f"Detection weights not found at {det_path}. Set DETECTION_WEIGHTS_PATH env var."
         )
 
-    # Load models
+    # Load models (matching pipeline_evaluation.py exactly)
     _yolo = YOLO(det_path)
     _swin = SwinForImageClassification.from_pretrained(clf_id)
     _processor = AutoImageProcessor.from_pretrained(clf_id)
@@ -86,7 +107,6 @@ def _get_yolo_infer_kwargs() -> Dict[str, Any]:
     - YOLO_CONF: float (optional) — detector confidence threshold
     - YOLO_MAX_DET: int (optional) — maximum detections
     """
-    # IoU default tuned to keep nearby boxes
     iou_str = os.getenv("YOLO_IOU", "0.85")
     try:
         iou = float(iou_str)
@@ -113,6 +133,7 @@ def _get_yolo_infer_kwargs() -> Dict[str, Any]:
 
 
 def _softmax(logits) -> List[float]:
+    """Compute softmax probabilities from logits."""
     import math
 
     if hasattr(logits, "tolist"):
@@ -121,6 +142,7 @@ def _softmax(logits) -> List[float]:
             vals = vals[0]
     else:
         vals = list(logits)
+
     m = max(vals)
     exps = [math.exp(v - m) for v in vals]
     s = sum(exps)
@@ -129,7 +151,8 @@ def _softmax(logits) -> List[float]:
 
 def _class_mapping() -> Dict[int, Tuple[str, str]]:
     """Default class id → (species, scientificName) mapping for 5 Florida anoles.
-    Adjust via code or future env if needed.
+
+    Matches pipeline_evaluation.py class ordering (0-4 for the 5 species).
     """
     return {
         0: ("Green Anole", "Anolis carolinensis"),
@@ -144,6 +167,19 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
     """
     Run detection + classification on a single image and return a structure
     compatible with the frontend's expected result format.
+
+    Mirrors the logic from Spring_2025/pipeline_evaluation.py:
+    1. Run YOLO detection
+    2. Filter by confidence (CONF_THRESH = 0 in evaluation)
+    3. Sort by confidence descending
+    4. Limit to top_k boxes (TOP_K = 5 in evaluation)
+    5. For each detection, crop and classify with Swin
+    6. Return predictions with bounding boxes and species info
+
+    Args:
+        image_bytes: Raw image bytes
+        conf_threshold: Minimum detection confidence (default 0.0, matches CONF_THRESH = 0)
+        top_k: Maximum number of boxes to classify (default 5, matches TOP_K = 5)
     """
     _load_models()
 
@@ -151,14 +187,20 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
 
     image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-    # Detection (configurable NMS IoU to keep nearby boxes)
+    # --- Detection (configurable NMS IoU to keep nearby boxes) ---
     yolo_kwargs = _get_yolo_infer_kwargs()
     results = _yolo(image, **yolo_kwargs)[0]
     boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
 
-    # Confidence filtering
+    # --- Confidence filtering (matches pipeline_evaluation.py) ---
+    # boxes = boxes[boxes[:, 4] >= CONF_THRESH]
     boxes = boxes[boxes[:, 4] >= conf_threshold]
+    # boxes = boxes[boxes[:, 4].argsort(descending=True)]
     boxes = boxes[boxes[:, 4].argsort(descending=True)]
+
+    # --- Limit to top K (matches pipeline_evaluation.py TOP_K) ---
+    # if TOP_K is not None:
+    #     boxes = boxes[:TOP_K]
     if top_k is not None:
         boxes = boxes[:top_k]
 
@@ -168,18 +210,31 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
     if boxes.shape[0] == 0:
         return {"totalLizards": 0, "predictions": []}
 
+    # --- Classification loop (matches pipeline_evaluation.py) ---
+    # for det in boxes:
+    #     x1, y1, x2, y2, conf, _ = det.tolist()
+    #     crop = image.crop((x1, y1, x2, y2))
+    #     inputs = processor(images=crop, return_tensors="pt")
+    #     with torch.no_grad():
+    #         logits = swin_model(**inputs).logits
+    #         swin_class = logits.argmax(dim=1).item()
+    import torch
+
     for det in boxes:
         x1, y1, x2, y2, det_conf, _ = det.tolist()
         crop = image.crop((x1, y1, x2, y2))
         inputs = _processor(images=crop, return_tensors="pt")
 
-        with __import__("torch").no_grad():  # type: ignore
+        with torch.no_grad():
             logits = _swin(**inputs).logits
-        probs = _softmax(logits)
-        cls_idx = int(max(range(len(probs)), key=lambda i: probs[i]))
-        cls_conf = float(probs[cls_idx])
+            swin_class = logits.argmax(dim=1).item()
 
-        species, sci = class_map.get(cls_idx, (f"Class {cls_idx}", f"Class {cls_idx}"))
+        # Compute softmax for confidence score
+        probs = _softmax(logits)
+        cls_conf = float(probs[swin_class])
+
+        species, sci = class_map.get(swin_class, (f"Class {swin_class}", f"Class {swin_class}"))
+
         predictions.append(
             {
                 "species": species,
@@ -188,7 +243,7 @@ def predict_image_bytes(image_bytes: bytes, conf_threshold: float = 0.0, top_k: 
                 "count": 1,
                 "box": [float(x1), float(y1), float(x2), float(y2)],
                 "detectionConf": float(det_conf),
-                "classIndex": cls_idx,
+                "classIndex": swin_class,
             }
         )
 
