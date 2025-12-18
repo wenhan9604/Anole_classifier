@@ -89,7 +89,8 @@ lerna-debug.log*
 # Docker
 *.pid
 
-# Archives
+Models/
+
 *.zip
 
 # Ignore model weights and exports
