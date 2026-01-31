@@ -5,15 +5,17 @@ import type { iNaturalistObservation } from "../services/iNaturalistService";
 import { AnoleDetectionService } from "../services/AnoleDetectionService";
 import type { DetectionMode } from "../services/AnoleDetectionService";
 import { ResizableBoundingBox } from "../components/ResizableBoundingBox";
+import { toast } from 'react-hot-toast';
 
 // Define the 5 Florida anole species (for reference)
-// const FLORIDA_ANOLE_SPECIES = [
-//   { name: "Green Anole", scientific: "Anolis carolinensis", common: "American Green Anole" },
-//   { name: "Brown Anole", scientific: "Anolis sagrei", common: "Cuban Brown Anole" },
-//   { name: "Crested Anole", scientific: "Anolis cristatellus", common: "Puerto Rican Crested Anole" },
-//   { name: "Knight Anole", scientific: "Anolis equestris", common: "Cuban Knight Anole" },
-//   { name: "Bark Anole", scientific: "Anolis distichus", common: "Bark Anole" }
-// ];
+// Define the 5 Florida anole species (for reference)
+const FLORIDA_ANOLE_SPECIES = [
+  { name: "Green Anole", scientific: "Anolis carolinensis", common: "American Green Anole" },
+  { name: "Brown Anole", scientific: "Anolis sagrei", common: "Cuban Brown Anole" },
+  { name: "Crested Anole", scientific: "Anolis cristatellus", common: "Puerto Rican Crested Anole" },
+  { name: "Knight Anole", scientific: "Anolis equestris", common: "Cuban Knight Anole" },
+  { name: "Bark Anole", scientific: "Anolis distichus", common: "Bark Anole" }
+];
 
 interface AlternateConfidence {
   classIndex: number;
@@ -53,7 +55,10 @@ export default function PredictionPage() {
   const [isClassifyingDrawnBox, setIsClassifyingDrawnBox] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
-  const reclassifyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reclassifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
+
 
   // Check for gpu query parameter
   useEffect(() => {
@@ -167,35 +172,38 @@ export default function PredictionPage() {
     if (!detectionResult || !selectedFile) return;
     
     setUploadingToiNaturalist(true);
+    toast.dismiss();
+    toast.loading('Simulating upload...');
     
-    try {
-      // Get current location if available
-      const location = await getCurrentLocation();
-      
-      // Create observations for each detected species
-      const uploadPromises = detectionResult.predictions.map(async (prediction) => {
-        const observation: iNaturalistObservation = {
-          species: prediction.species,
-          scientificName: prediction.scientificName,
-          confidence: prediction.confidence,
-          count: prediction.count,
-          imageFile: selectedFile,
-          location: location || undefined,
-          notes: `Detected by AI`
-        };
-        
-        return iNaturalistAPI.uploadObservation(observation);
-      });
-      
-      await Promise.all(uploadPromises);
-      
-      alert(`Successfully uploaded ${detectionResult.predictions.length} observation(s) to iNaturalist! Your contributions to citizen science are appreciated.`);
-    } catch (error) {
-      console.error("iNaturalist upload failed:", error);
-      alert("Failed to upload to iNaturalist. Please try again.");
-    } finally {
+    // Simulate network delay
+    setTimeout(() => {
       setUploadingToiNaturalist(false);
-    }
+      toast.dismiss();
+      toast.success('Work in progress: Real iNaturalist upload integration pending', {
+        icon: '🚧',
+        duration: 4000
+      });
+    }, 1500);
+  };
+
+  const handleSpeciesCorrection = (index: number, newSpeciesName: string) => {
+    if (!detectionResult) return;
+
+    const selectedSpecies = FLORIDA_ANOLE_SPECIES.find(s => s.name === newSpeciesName);
+    if (!selectedSpecies) return;
+
+    const updatedPredictions = [...detectionResult.predictions];
+    updatedPredictions[index] = {
+      ...updatedPredictions[index],
+      species: selectedSpecies.name,
+      scientificName: selectedSpecies.scientific,
+      confidence: 1.0, // Manual correction implies 100% confidence
+    };
+
+    setDetectionResult({
+      ...detectionResult,
+      predictions: updatedPredictions,
+    });
   };
 
   const handleBoxResize = useCallback((index: number, newBox: { x: number; y: number; width: number; height: number }) => {
@@ -860,9 +868,35 @@ export default function PredictionPage() {
               boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
-                <h4 style={{ margin: 0, color: "#495057", flex: "1", minWidth: "200px" }}>
-                  {prediction.species === "Failed" ? "Failed" : `${prediction.species} (${prediction.scientificName})`}
-                </h4>
+                <div style={{ flex: "1", minWidth: "200px", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <h4 style={{ margin: 0, color: "#495057" }}>
+                    {prediction.species === "Failed" ? "Failed" : `${prediction.species} (${prediction.scientificName})`}
+                  </h4>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleSpeciesCorrection(index, e.target.value);
+                      }
+                    }}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      border: "1px solid #ced4da",
+                      fontSize: "0.85rem",
+                      backgroundColor: "white",
+                      cursor: "pointer",
+                      color: "#495057"
+                    }}
+                  >
+                    <option value="" disabled>Correct...</option>
+                    {FLORIDA_ANOLE_SPECIES.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <span className={`confidence-${prediction.confidence > 0.8 ? 'high' : prediction.confidence > 0.6 ? 'medium' : 'low'}`} style={{ 
                   padding: "0.25rem 0.5rem",
                   borderRadius: "4px",
@@ -907,6 +941,8 @@ export default function PredictionPage() {
             </div>
           ))}
           
+          {/* iNaturalist Upload Section */}
+
           {/* iNaturalist Upload Button */}
           <div style={{ textAlign: "center", marginTop: "1rem" }}>
             <button

@@ -28,8 +28,17 @@ class iNaturalistService {
   private auth: iNaturalistAuth | null = null;
 
   // Initialize authentication (this would typically be done through OAuth flow)
-  async authenticate(): Promise<boolean> {
+  async authenticate(manualToken?: string): Promise<boolean> {
     try {
+      if (manualToken) {
+        this.auth = {
+          accessToken: manualToken,
+          refreshToken: '',
+          expiresAt: Date.now() + 86400000 // Treat as valid for 24h
+        };
+        return true;
+      }
+
       // If backend is configured, get mock tokens from backend
       if (this.backendBaseURL) {
         const res = await fetch(`${this.backendBaseURL}/api/auth/mock-login`, {
@@ -84,8 +93,14 @@ class iNaturalistService {
       }
 
       if (this.backendBaseURL) {
+        const headers: HeadersInit = {};
+        if (this.auth?.accessToken) {
+          headers['Authorization'] = this.auth.accessToken; // Pass the JWT
+        }
+
         const res = await fetch(`${this.backendBaseURL}/api/observations`, {
           method: 'POST',
+          headers: headers,
           body: formData
         });
         if (!res.ok) {

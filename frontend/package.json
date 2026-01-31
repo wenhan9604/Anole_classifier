@@ -13,6 +13,7 @@
     "onnxruntime-web": "^1.23.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.1"
   },
   "devDependencies": {
