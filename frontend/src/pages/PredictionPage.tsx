@@ -32,6 +32,7 @@ interface PredictionResult {
   count: number;
   box?: [number, number, number, number]; // [x1, y1, x2, y2] bounding box coordinates
   altConfidences?: AlternateConfidence[];
+  isManualCorrection?: boolean;
 }
 
 interface DetectionResult {
@@ -198,6 +199,7 @@ export default function PredictionPage() {
       species: selectedSpecies.name,
       scientificName: selectedSpecies.scientific,
       confidence: 1.0, // Manual correction implies 100% confidence
+      isManualCorrection: true,
     };
 
     setDetectionResult({
@@ -903,10 +905,12 @@ export default function PredictionPage() {
                   fontSize: "0.875rem",
                   fontWeight: "bold",
                   whiteSpace: "nowrap",
-                  backgroundColor: prediction.species === "Failed" ? "#6c757d" : undefined,
-                  color: prediction.species === "Failed" ? "white" : undefined
+                  backgroundColor: prediction.species === "Failed" ? "#6c757d" : prediction.isManualCorrection ? "#1976D2" : undefined,
+                  color: prediction.species === "Failed" || prediction.isManualCorrection ? "white" : undefined
                 }}>
-                  {prediction.species === "Failed" ? "0.00% confidence" : `${(prediction.confidence * 100).toFixed(1)}% confidence`}
+                  {prediction.species === "Failed" ? "0.00% confidence" :
+                    prediction.isManualCorrection ? "100% (User Corrected)" :
+                      `${(prediction.confidence * 100).toFixed(1)}% confidence`}
                 </span>
               </div>
               
