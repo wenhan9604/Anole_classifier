@@ -24,7 +24,7 @@ Overall, the classification pipeline achieved <ins>85.6% classification accuracy
 - The pipeline scored a relatively <ins>high recall (above 80%)</ins> for all lizard classes except for Brown Anole.
   
 The confusion matrix displayed the prediction for the 5 lizard classes and the number of missed detection in stage 1 of the pipeline (lizard detection model).
-- Evidently, the graph shows the <ins>high number of false positives of crested anole predictions (above 12%).</ins> This significantly lowered the precision of the pipeline's performance on the crested anole class. 
+- Evidently, the graph shows the <ins>high number of false positives of crested anole predictions (above 6%).</ins> This significantly lowered the precision of the pipeline's performance on the crested anole class. 
 
 <p align="center">
   <img src="./project_landing_page/OverallResult_85.6.png"/>
