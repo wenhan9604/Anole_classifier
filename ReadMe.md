@@ -4,7 +4,7 @@ The Florida Anole Species Classification project aims to develop a robust machin
 
 FGVC is inherently challenging due to high inter-class similarity and high intra-class variation. For example, Brown and Bark Anoles share similar coloration and patterns, complicating inter-species differentiation. Conversely, Crested Anoles exhibit wide variations in skin color and crest morphology, complicating intra-species classification. Additionally, Anoles often appear camouflaged and occupy a small portion of the image, making their distinguishing features difficult to detect.
 
-While prior FGVC approaches leverage attention mechanisms and feature localization techniques (e.g., Mask-CNN, Recurrent Attention-CNN) as well as modern architectures like Vision Transformers, they often fall short in handling small object detection. To address this, we propose a three-stage pipeline: (1) detect lizards using a fine-tuned object detection model, (2) crop detected regions, and (3) classify subspecies using a fine-tuned Swin Transformer. We curated a dataset of 10,000 images from iNaturalist, filtered for visibility of species-specific features, covering Bark, Brown, Crested, Green, and Knight Anoles. Our pipeline achieved a competitive <ins>top-1 accuracy of 87.6%</ins>.
+While prior FGVC approaches leverage attention mechanisms and feature localization techniques (e.g., Mask-CNN, Recurrent Attention-CNN) as well as modern architectures like Vision Transformers, they often fall short in handling small object detection. To address this, we propose a three-stage pipeline: (1) detect lizards using a fine-tuned object detection model, (2) crop detected regions, and (3) classify subspecies using a fine-tuned Swin Transformer. We curated a dataset of 10,000 images from iNaturalist, filtered for visibility of species-specific features, covering Bark, Brown, Crested, Green, and Knight Anoles. Our pipeline achieved a competitive <ins>top-1 accuracy of 85.6%</ins>.
 
 
 <p align="center">
@@ -20,7 +20,7 @@ We proposed a classification pipeline that consist of 3 stages:
 ## Results
 
 #### Overall Result
-Overall, the classification pipeline achieved <ins>87.6% classification accuracy </ins>. The precision, recall and f1-score of each class is shown in the image below. 
+Overall, the classification pipeline achieved <ins>85.6% classification accuracy </ins>. The precision, recall and f1-score of each class is shown in the image below. 
 - Generally, the pipeline achieved <ins>high precision (above 90%)</ins> across all anole classes except for Crested Anole.
 - Furthermore, the pipeline scored a relatively <ins>high recall (above 85%)</ins> for all lizard classes.
   
@@ -42,7 +42,7 @@ Next, we will go into the details of the results of each stage of the pipeline a
 - **mean Average Precision (mAP) at high Intersection over Union (IoU)** is the next most important metric. In the first stage of the pipeline, we will filter predictions using a high IoU value to create a better localized bounding box around the lizard. This helps to preserve and capture the key features of the lizard in the cropped image, before being passed downstream to the classification model. Thus, we value mAP @ high IoU of 50-95. YOLOv8x emerged as the top performer with the highest mAP for IoU of 50-95.
 - **Considering the high Recall, F1-score and mAP results, YOLOv8x was chosen as the lizard detection model.**
 
-#### Stage 3 - Classification Model
+#### Stage 2 - Classification Model
 From the images below, the Swin Transformer (Base) model was the most performant classification model with a score of <ins>93.9% for Top-1 accuracy</ins>. Furthermore, it achieved highest number of classified classes with above 90% precision (as highlighted in green). Therefore, the fine-tuned Swin Transformer (Base) model was chosen as the classification model for cropped lizard images.
 
 <p align="center">
