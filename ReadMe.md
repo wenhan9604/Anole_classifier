@@ -21,14 +21,13 @@ We proposed a classification pipeline that consist of 3 stages:
 
 #### Overall Result
 Overall, the classification pipeline achieved <ins>85.6% classification accuracy </ins>. The precision, recall and f1-score of each class is shown in the image below. 
-- Generally, the pipeline achieved <ins>high precision (above 90%)</ins> across all anole classes except for Crested Anole.
-- Furthermore, the pipeline scored a relatively <ins>high recall (above 85%)</ins> for all lizard classes.
+- The pipeline scored a relatively <ins>high recall (above 80%)</ins> for all lizard classes except for Brown Anole.
   
 The confusion matrix displayed the prediction for the 5 lizard classes and the number of missed detection in stage 1 of the pipeline (lizard detection model).
 - Evidently, the graph shows the <ins>high number of false positives of crested anole predictions (above 12%).</ins> This significantly lowered the precision of the pipeline's performance on the crested anole class. 
 
 <p align="center">
-  <img src="./project_landing_page/ObjectDetectionLarge_overall_result.png"/>
+  <img src="./project_landing_page/OverallResult_85.6.png"/>
 </p>
 
 Next, we will go into the details of the results of each stage of the pipeline as well as the rationale for the chosen metric and models.
