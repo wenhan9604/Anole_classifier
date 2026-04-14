@@ -85,6 +85,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+backend_log.txt
 
 # Docker
 *.pid
