@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AnoleDetectionService } from "../services/AnoleDetectionService";
-import type { DetectionMode } from "../services/AnoleDetectionService";
+import {
+  AnoleDetectionService,
+  type DetectionMode,
+  type FrontendInferenceTimings,
+} from "../services/AnoleDetectionService";
 import { ResizableBoundingBox } from "../components/ResizableBoundingBox";
 import { toast } from 'react-hot-toast';
 
@@ -14,6 +17,37 @@ const FLORIDA_ANOLE_SPECIES = [
   { name: "Knight Anole", scientific: "Anolis equestris", common: "Cuban Knight Anole" },
   { name: "Bark Anole", scientific: "Anolis distichus", common: "Bark Anole" }
 ];
+
+/** Canonical mode for `<select>` (server paths collapse to `backend`). */
+function normalizeInferenceModeForSelect(mode: DetectionMode): DetectionMode {
+  if (mode === "backend-pytorch") return "backend";
+  if (mode === "onnx-frontend") return "onnx-frontend-auto";
+  return mode;
+}
+
+const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
+  { value: "backend", label: "Server — PyTorch (CPU)" },
+  { value: "onnx-frontend-auto", label: "This device — GPU if available (WebGPU or WASM)" },
+  { value: "onnx-frontend-wasm", label: "This device — WASM only (no WebGPU)" },
+  { value: "onnx-frontend-gpu", label: "This device — WebGPU only" },
+];
+
+function detectionModeToGpuQuery(mode: DetectionMode): string | null {
+  switch (mode) {
+    case "backend":
+    case "backend-pytorch":
+      return null;
+    case "onnx-frontend":
+    case "onnx-frontend-auto":
+      return "client-side";
+    case "onnx-frontend-wasm":
+      return "client-wasm";
+    case "onnx-frontend-gpu":
+      return "client-gpu";
+    default:
+      return null;
+  }
+}
 
 interface AlternateConfidence {
   classIndex: number;
@@ -37,10 +71,12 @@ interface DetectionResult {
   totalLizards: number;
   predictions: PredictionResult[];
   imageUrl?: string;
+  /** Client ONNX perf (browser only). */
+  clientTimings?: FrontendInferenceTimings;
 }
 
 export default function PredictionPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
@@ -59,20 +95,38 @@ export default function PredictionPage() {
 
 
 
-  // Check for gpu query parameter
+  // Inference mode from ?gpu=… (client-side = WebGPU-first auto, with WASM fallback)
   useEffect(() => {
     const gpuParam = searchParams.get('gpu');
-    if (gpuParam === 'client-side') {
-      setDetectionMode('onnx-frontend');
-      console.log('🖥️ Client-side ONNX mode enabled via ?gpu=client-side');
+    if (gpuParam === 'client-side' || gpuParam === 'client') {
+      setDetectionMode('onnx-frontend-auto');
+      console.log('Client-side ONNX (auto: WebGPU if available, else WASM) via ?gpu=client-side');
+    } else if (gpuParam === 'client-wasm') {
+      setDetectionMode('onnx-frontend-wasm');
+      console.log('Client-side ONNX (WASM only) via ?gpu=client-wasm');
+    } else if (gpuParam === 'client-gpu') {
+      setDetectionMode('onnx-frontend-gpu');
+      console.log('Client-side ONNX (WebGPU required) via ?gpu=client-gpu');
     } else if (gpuParam === 'server') {
-      setDetectionMode('backend-pytorch');
-      console.log('🎮 Backend PyTorch mode enabled via ?gpu=server');
+      setDetectionMode('backend');
+      console.log('Backend PyTorch (CPU) via ?gpu=server');
     } else {
       setDetectionMode('backend');
-      console.log('☁️ Backend PyTorch-CPU mode (default, uses best.pt)');
+      console.log('Backend PyTorch-CPU (default)');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    return () => {
+      void AnoleDetectionService.disposeClientOnnx();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (detectionMode === 'backend' || detectionMode === 'backend-pytorch') {
+      void AnoleDetectionService.disposeClientOnnx();
+    }
+  }, [detectionMode]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -82,6 +136,30 @@ export default function PredictionPage() {
       }
     };
   }, []);
+
+  const handleInferenceLocationChange = useCallback(
+    (mode: DetectionMode) => {
+      const canonical =
+        mode === "backend-pytorch"
+          ? "backend"
+          : mode === "onnx-frontend"
+            ? "onnx-frontend-auto"
+            : mode;
+      setDetectionMode(canonical);
+      setDetectionResult(null);
+      const gpu = detectionModeToGpuQuery(canonical);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (gpu) next.set("gpu", gpu);
+          else next.delete("gpu");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -100,11 +178,9 @@ export default function PredictionPage() {
     
     try {
       // Use AnoleDetectionService with the selected detection mode
-      const modeLabel = detectionMode === 'onnx-frontend' 
-        ? 'client-side ONNX' 
-        : detectionMode === 'backend-pytorch'
-        ? 'backend PyTorch'
-        : 'backend PyTorch-CPU (best.pt)';
+      const modeLabel = AnoleDetectionService.isOnnxFrontendMode(detectionMode)
+        ? `client-side ONNX (${AnoleDetectionService.modeToOnnxPreference(detectionMode)})`
+        : "backend PyTorch-CPU (best.pt)";
       console.log(`Starting detection with ${modeLabel}...`);
       const data = await AnoleDetectionService.detect(selectedFile, detectionMode);
       
@@ -150,7 +226,8 @@ export default function PredictionPage() {
             altConfidences,
           };
         }),
-        imageUrl: previewUrl || undefined
+        imageUrl: previewUrl || undefined,
+        clientTimings: data.timings,
       };
       
       // Debug: log bounding boxes
@@ -429,32 +506,92 @@ export default function PredictionPage() {
     <div className="container" style={{ textAlign: "center" }}>
       <h1 style={{ color: "#2E7D32", fontSize: "2.5rem", marginBottom: "0.5rem" }}>🦎 Anole Species Classification</h1>
       
-      {/* Back to home link */}
-      <div style={{ marginBottom: "2rem", display: "flex", alignItems: "center", gap: "1rem", justifyContent: "center" }}>
-        <Link 
-          to="/" 
-          style={{ 
-            color: "#2E7D32", 
+      {/* Back to home + inference location */}
+      <div
+        style={{
+          marginBottom: "1.5rem",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "1rem",
+        }}
+      >
+        <Link
+          to="/"
+          style={{
+            color: "#2E7D32",
             textDecoration: "none",
             fontSize: "14px",
-            fontWeight: "500"
+            fontWeight: "500",
           }}
         >
           ← Back to Home
         </Link>
-        
-        {/* Detection mode indicator */}
-        <span style={{
-          padding: "4px 12px",
-          borderRadius: "12px",
-          fontSize: "12px",
-          fontWeight: "500",
-          backgroundColor: detectionMode === 'onnx-frontend' ? '#e3f2fd' : detectionMode === 'backend-pytorch' ? '#e8f5e9' : '#f5f5f5',
-          color: detectionMode === 'onnx-frontend' ? '#1976d2' : detectionMode === 'backend-pytorch' ? '#2e7d32' : '#666',
-          border: `1px solid ${detectionMode === 'onnx-frontend' ? '#90caf9' : detectionMode === 'backend-pytorch' ? '#66bb6a' : '#ddd'}`
-        }}>
-          {detectionMode === 'onnx-frontend' ? '🖥️ Client-side ONNX' : detectionMode === 'backend-pytorch' ? '🎮 Backend PyTorch' : '☁️ PyTorch CPU (best.pt)'}
-        </span>
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.75rem",
+            maxWidth: "min(100%, 520px)",
+          }}
+        >
+          <label
+            htmlFor="inference-location"
+            style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}
+          >
+            Inference location
+          </label>
+          <select
+            id="inference-location"
+            value={normalizeInferenceModeForSelect(detectionMode)}
+            onChange={(e) =>
+              handleInferenceLocationChange(e.target.value as DetectionMode)
+            }
+            disabled={
+              isLoading ||
+              reclassifyingIndex !== null ||
+              isDrawing ||
+              isClassifyingDrawnBox
+            }
+            style={{
+              minWidth: "260px",
+              maxWidth: "100%",
+              padding: "8px 12px",
+              fontSize: "14px",
+              borderRadius: "8px",
+              border: "1px solid #ced4da",
+              backgroundColor: "#fff",
+              color: "#212529",
+              cursor:
+                isLoading ||
+                reclassifyingIndex !== null ||
+                isDrawing ||
+                isClassifyingDrawnBox
+                  ? "not-allowed"
+                  : "pointer",
+            }}
+          >
+            {INFERENCE_LOCATION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {AnoleDetectionService.isOnnxFrontendMode(detectionMode) &&
+          detectionResult?.clientTimings?.executionProvider && (
+            <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+              Last run execution provider:{" "}
+              <strong>{detectionResult.clientTimings.executionProvider}</strong>
+              {" · "}
+              preference{" "}
+              <strong>{detectionResult.clientTimings.onnxPreference}</strong>
+            </p>
+          )}
       </div>
 
       {/* Species Information */}
@@ -857,6 +994,34 @@ export default function PredictionPage() {
           <div style={{ marginBottom: "1rem", textAlign: "center" }}>
             <strong>Total Lizards Detected: {detectionResult.totalLizards}</strong>
           </div>
+
+          {detectionResult.clientTimings && (
+            <details
+              style={{
+                marginBottom: "1rem",
+                fontSize: "0.85rem",
+                textAlign: "left",
+                backgroundColor: "#fff",
+                padding: "0.75rem",
+                borderRadius: "8px",
+                border: "1px solid #dee2e6",
+              }}
+            >
+              <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                Inference timings (client ONNX)
+              </summary>
+              <pre
+                style={{
+                  marginTop: "0.5rem",
+                  overflow: "auto",
+                  maxHeight: "240px",
+                  fontSize: "0.75rem",
+                }}
+              >
+                {JSON.stringify(detectionResult.clientTimings, null, 2)}
+              </pre>
+            </details>
+          )}
           
           {detectionResult.predictions.map((prediction, index) => (
             <div key={index} className="species-card" style={{
