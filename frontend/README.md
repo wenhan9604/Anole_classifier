@@ -34,6 +34,24 @@ npm run dev
 
 The application will be available at `http://localhost:5173` (or the next available port).
 
+### Inference location (`?gpu=`)
+
+On the prediction page, you can choose where inference runs:
+
+| Query | Behavior |
+|--------|----------|
+| *(default)* | Backend PyTorch CPU (`/api/predict`) |
+| `?gpu=server` | Backend PyTorch CPU (same as default; kept for links) |
+| `?gpu=client-side` or `?gpu=client` | Client ONNX: **WebGPU first** (`onnxruntime-web/webgpu`), falls back to WASM if WebGPU is unavailable or init fails |
+| `?gpu=client-wasm` | Client ONNX **WASM only** |
+| `?gpu=client-gpu` | Client ONNX **WebGPU required** (fails if `navigator.gpu` is missing) |
+
+On the prediction page you can also use the **Inference location** dropdown (it updates the URL `gpu` query for sharing).
+
+Client runs need `yolo_best.onnx` and `swin_model.onnx` served from `/models/` (see `public/` / deploy config). After a run, expand **Inference timings (client ONNX)** for stage-level milliseconds (YOLO preprocess / inference / postprocess, per-crop Swin).
+
+**Manual check (no automation in CI here):** With the same image, run Predict under default (backend), then `?gpu=client-wasm`, then `?gpu=client-side` in a WebGPU-capable browser; compare total time in the timings JSON and the badge `EP=` label (`wasm` vs `webgpu+wasm`).
+
 ### Building for Production
 ```bash
 # Build the application
