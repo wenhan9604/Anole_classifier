@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { iNaturalistAPI, getCurrentLocation } from "../services/iNaturalistService";
-import type { iNaturalistObservation } from "../services/iNaturalistService";
 import { AnoleDetectionService } from "../services/AnoleDetectionService";
 import type { DetectionMode } from "../services/AnoleDetectionService";
 import { ResizableBoundingBox } from "../components/ResizableBoundingBox";
@@ -49,7 +47,7 @@ export default function PredictionPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToiNaturalist, setUploadingToiNaturalist] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [detectionMode, setDetectionMode] = useState<DetectionMode>('backend');
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>('auto');
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingBox, setDrawingBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
@@ -61,18 +59,17 @@ export default function PredictionPage() {
 
 
 
-  // Check for gpu query parameter
+  // Optional ?gpu= override; default is Auto (probe client ONNX vs server).
   useEffect(() => {
-    const gpuParam = searchParams.get('gpu');
-    if (gpuParam === 'client-side') {
+    const g = searchParams.get('gpu');
+    if (g === 'client-side') {
       setDetectionMode('onnx-frontend');
-      console.log('🖥️ Client-side ONNX mode enabled via ?gpu=client-side');
-    } else if (gpuParam === 'server') {
+    } else if (g === 'server') {
       setDetectionMode('backend-pytorch');
-      console.log('🎮 Backend PyTorch mode enabled via ?gpu=server');
-    } else {
+    } else if (g === 'backend' || g === 'cpu') {
       setDetectionMode('backend');
-      console.log('☁️ Backend PyTorch-CPU mode (default, uses best.pt)');
+    } else {
+      setDetectionMode('auto');
     }
   }, [searchParams]);
 
@@ -102,11 +99,14 @@ export default function PredictionPage() {
     
     try {
       // Use AnoleDetectionService with the selected detection mode
-      const modeLabel = detectionMode === 'onnx-frontend' 
-        ? 'client-side ONNX' 
-        : detectionMode === 'backend-pytorch'
-        ? 'backend PyTorch'
-        : 'backend PyTorch-CPU (best.pt)';
+      const modeLabel =
+        detectionMode === 'onnx-frontend'
+          ? 'client-side ONNX'
+          : detectionMode === 'backend-pytorch'
+            ? 'backend PyTorch'
+            : detectionMode === 'auto'
+              ? 'Auto (client ONNX if viable, else server)'
+              : 'backend PyTorch-CPU (best.pt)';
       console.log(`Starting detection with ${modeLabel}...`);
       const data = await AnoleDetectionService.detect(selectedFile, detectionMode);
       
@@ -445,18 +445,77 @@ export default function PredictionPage() {
           ← Back to Home
         </Link>
         
-        {/* Detection mode indicator */}
+        {/* Inference mode */}
         <span style={{
           padding: "4px 12px",
           borderRadius: "12px",
           fontSize: "12px",
           fontWeight: "500",
-          backgroundColor: detectionMode === 'onnx-frontend' ? '#e3f2fd' : detectionMode === 'backend-pytorch' ? '#e8f5e9' : '#f5f5f5',
-          color: detectionMode === 'onnx-frontend' ? '#1976d2' : detectionMode === 'backend-pytorch' ? '#2e7d32' : '#666',
-          border: `1px solid ${detectionMode === 'onnx-frontend' ? '#90caf9' : detectionMode === 'backend-pytorch' ? '#66bb6a' : '#ddd'}`
+          backgroundColor:
+            detectionMode === 'onnx-frontend'
+              ? '#e3f2fd'
+              : detectionMode === 'backend-pytorch'
+                ? '#e8f5e9'
+                : detectionMode === 'auto'
+                  ? '#ede7f6'
+                  : '#f5f5f5',
+          color:
+            detectionMode === 'onnx-frontend'
+              ? '#1976d2'
+              : detectionMode === 'backend-pytorch'
+                ? '#2e7d32'
+                : detectionMode === 'auto'
+                  ? '#5e35b1'
+                  : '#666',
+          border: `1px solid ${
+            detectionMode === 'onnx-frontend'
+              ? '#90caf9'
+              : detectionMode === 'backend-pytorch'
+                ? '#66bb6a'
+                : detectionMode === 'auto'
+                  ? '#b39ddb'
+                  : '#ddd'
+          }`
         }}>
-          {detectionMode === 'onnx-frontend' ? '🖥️ Client-side ONNX' : detectionMode === 'backend-pytorch' ? '🎮 Backend PyTorch' : '☁️ PyTorch CPU (best.pt)'}
+          {detectionMode === 'onnx-frontend'
+            ? '🖥️ Client-side ONNX'
+            : detectionMode === 'backend-pytorch'
+              ? '🎮 Backend PyTorch'
+              : detectionMode === 'auto'
+                ? '🎯 Auto'
+                : '☁️ Server PyTorch (CPU)'}
         </span>
+        <select
+          aria-label="Inference mode"
+          value={detectionMode}
+          onChange={(e) => {
+            const v = e.target.value as DetectionMode;
+            if (v === 'auto') {
+              AnoleDetectionService.invalidateClientOnnxProbe();
+            }
+            setDetectionMode(v);
+          }}
+          style={{
+            padding: "6px 28px 6px 10px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            lineHeight: 1.35,
+            border: "1px solid #ccc",
+            backgroundColor: "#fff",
+            color: "#213547",
+            cursor: "pointer",
+            minHeight: "38px",
+            maxWidth: "min(100%, 320px)",
+            // Native selects follow OS color-scheme; white bg + inherited light text = invisible.
+            colorScheme: "only light",
+            WebkitTextFillColor: "#213547",
+          }}
+        >
+          <option value="auto">Auto (recommended)</option>
+          <option value="backend">Server — PyTorch CPU</option>
+          <option value="backend-pytorch">Server — PyTorch (GPU if available)</option>
+          <option value="onnx-frontend">Browser — ONNX</option>
+        </select>
       </div>
 
       {/* Species Information */}

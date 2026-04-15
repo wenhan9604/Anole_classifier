@@ -61,6 +61,7 @@ Dataset/
 !Dataset/README.md
 
 # IDE
+.cursor/
 .vscode/
 !.vscode/extensions.json
 .idea/
