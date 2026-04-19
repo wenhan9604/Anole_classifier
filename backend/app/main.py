@@ -10,9 +10,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Load backend/.env for local dev (uvicorn does not load it automatically)
+# Load backend/.env for local dev (uvicorn does not load it automatically).
+# Tests set ANOLE_SKIP_DOTENV=1 via pytest_configure so monkeypatched env wins.
 _backend_dir = Path(__file__).resolve().parent.parent
-load_dotenv(_backend_dir / ".env")
+if os.getenv("ANOLE_SKIP_DOTENV") != "1":
+    load_dotenv(_backend_dir / ".env")
 
 from .routers import observations, species, auth, predict
 

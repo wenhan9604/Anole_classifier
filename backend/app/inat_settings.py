@@ -12,7 +12,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class INatOAuthSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="INAT_",
-        env_file=".env",
         extra="ignore",
     )
 
@@ -34,10 +33,14 @@ class INatOAuthSettings(BaseSettings):
         default="lax",
         description="Session cookie SameSite: lax | strict | none",
     )
+    cookie_secure: str = Field(
+        default="auto",
+        description="Session cookie Secure: auto (HTTPS request only), true, or false",
+    )
 
 
 class AppAuthFlags(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
     enable_inat_mock_auth: bool = Field(
         default=False,
@@ -60,13 +63,23 @@ def inat_oauth_configured() -> bool:
     return bool(s.client_id and s.client_secret and s.redirect_uri and s.frontend_success_url)
 
 
-def _is_https(url: str) -> bool:
-    return url.lower().startswith("https://")
-
-
-def session_cookie_secure() -> bool:
-    """Use Secure cookies when using HTTPS callback or SameSite=None."""
+def session_cookie_secure(request_scheme: str, x_forwarded_proto: str | None) -> bool:
+    """
+    Whether to set the session cookie with the Secure flag.
+    Prefer the actual request (or reverse-proxy) scheme over INAT_* URLs so
+    local http://localhost:8000 still gets a usable cookie when redirect_uri is https.
+    """
     s = get_inat_oauth_settings()
+    mode = (s.cookie_secure or "auto").strip().lower()
+    if mode == "true":
+        return True
+    if mode == "false":
+        return False
+    # auto
     if s.cookie_samesite.lower() == "none":
         return True
-    return _is_https(s.redirect_uri) or _is_https(s.frontend_success_url)
+    if x_forwarded_proto:
+        first = x_forwarded_proto.split(",")[0].strip().lower()
+        if first == "https":
+            return True
+    return (request_scheme or "").lower() == "https"

@@ -40,14 +40,16 @@ class INatStatusResponse(BaseModel):
     expiresAt: Optional[int] = None
 
 
-def _session_cookie_params() -> dict:
+def _session_cookie_params(request: Request) -> dict:
     s = get_inat_oauth_settings()
     same = (s.cookie_samesite or "lax").lower()
     if same not in ("lax", "strict", "none"):
         same = "lax"
+    xf_proto = request.headers.get("x-forwarded-proto")
+    secure = session_cookie_secure(request.url.scheme, xf_proto)
     return {
         "httponly": True,
-        "secure": session_cookie_secure(),
+        "secure": secure,
         "samesite": same,
         "max_age": SESSION_COOKIE_MAX_AGE,
         "path": "/",
@@ -97,7 +99,7 @@ async def inat_oauth_login(request: Request):
 
     dest = _authorize_url(state)
     resp = RedirectResponse(url=dest, status_code=302)
-    resp.set_cookie(INAT_SESSION_COOKIE_NAME, session_id, **_session_cookie_params())
+    resp.set_cookie(INAT_SESSION_COOKIE_NAME, session_id, **_session_cookie_params(request))
     return resp
 
 
@@ -139,7 +141,7 @@ async def inat_oauth_callback(request: Request, code: Optional[str] = None, stat
         raise HTTPException(status_code=500, detail="INAT_FRONTEND_SUCCESS_URL is not set")
 
     resp = RedirectResponse(url=success, status_code=302)
-    resp.set_cookie(INAT_SESSION_COOKIE_NAME, session_id, **_session_cookie_params())
+    resp.set_cookie(INAT_SESSION_COOKIE_NAME, session_id, **_session_cookie_params(request))
     return resp
 
 
@@ -160,5 +162,12 @@ async def inat_logout(request: Request, response: Response):
     sid = _get_session_id(request)
     if sid:
         inat_store.clear_session(sid)
-    response.delete_cookie(INAT_SESSION_COOKIE_NAME, path="/")
+    p = _session_cookie_params(request)
+    response.delete_cookie(
+        INAT_SESSION_COOKIE_NAME,
+        path="/",
+        secure=p["secure"],
+        httponly=True,
+        samesite=p["samesite"],
+    )
     return {"ok": True}
