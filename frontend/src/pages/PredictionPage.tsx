@@ -26,6 +26,7 @@ function normalizeInferenceModeForSelect(mode: DetectionMode): DetectionMode {
 }
 
 const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
+  { value: "auto", label: "Auto — this device if viable, else server" },
   { value: "backend", label: "Server — PyTorch (CPU)" },
   { value: "onnx-frontend-auto", label: "This device — GPU if available (WebGPU or WASM)" },
   { value: "onnx-frontend-wasm", label: "This device — WASM only (no WebGPU)" },
@@ -34,6 +35,8 @@ const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
 
 function detectionModeToGpuQuery(mode: DetectionMode): string | null {
   switch (mode) {
+    case "auto":
+      return null;
     case "backend":
     case "backend-pytorch":
       return null;
@@ -83,7 +86,7 @@ export default function PredictionPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToiNaturalist, setUploadingToiNaturalist] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [detectionMode, setDetectionMode] = useState<DetectionMode>('backend');
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>('auto');
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingBox, setDrawingBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
@@ -95,7 +98,7 @@ export default function PredictionPage() {
 
 
 
-  // Inference mode from ?gpu=… (client-side = WebGPU-first auto, with WASM fallback)
+  // Inference mode from ?gpu=… (default / no param = Auto probe; client-side = WebGPU-first auto)
   useEffect(() => {
     const gpuParam = searchParams.get('gpu');
     if (gpuParam === 'client-side' || gpuParam === 'client') {
@@ -110,9 +113,12 @@ export default function PredictionPage() {
     } else if (gpuParam === 'server') {
       setDetectionMode('backend');
       console.log('Backend PyTorch (CPU) via ?gpu=server');
+    } else if (gpuParam === 'auto' || gpuParam == null) {
+      setDetectionMode('auto');
+      console.log('Auto inference (probe client ONNX vs server)');
     } else {
-      setDetectionMode('backend');
-      console.log('Backend PyTorch-CPU (default)');
+      setDetectionMode('auto');
+      console.log('Auto inference (default; unrecognized ?gpu= value)');
     }
   }, [searchParams]);
 
@@ -126,6 +132,7 @@ export default function PredictionPage() {
     if (detectionMode === 'backend' || detectionMode === 'backend-pytorch') {
       void AnoleDetectionService.disposeClientOnnx();
     }
+    // Keep client sessions for 'auto' and explicit client modes until route unmount / dispose effect above.
   }, [detectionMode]);
 
   // Cleanup timeout on unmount
@@ -139,6 +146,9 @@ export default function PredictionPage() {
 
   const handleInferenceLocationChange = useCallback(
     (mode: DetectionMode) => {
+      if (mode === "auto") {
+        AnoleDetectionService.invalidateClientOnnxProbe();
+      }
       const canonical =
         mode === "backend-pytorch"
           ? "backend"
@@ -178,9 +188,12 @@ export default function PredictionPage() {
     
     try {
       // Use AnoleDetectionService with the selected detection mode
-      const modeLabel = AnoleDetectionService.isOnnxFrontendMode(detectionMode)
-        ? `client-side ONNX (${AnoleDetectionService.modeToOnnxPreference(detectionMode)})`
-        : "backend PyTorch-CPU (best.pt)";
+      const modeLabel =
+        detectionMode === "auto"
+          ? "Auto (client ONNX if viable, else server)"
+          : AnoleDetectionService.isOnnxFrontendMode(detectionMode)
+            ? `client-side ONNX (${AnoleDetectionService.modeToOnnxPreference(detectionMode)})`
+            : "backend PyTorch-CPU (best.pt)";
       console.log(`Starting detection with ${modeLabel}...`);
       const data = await AnoleDetectionService.detect(selectedFile, detectionMode);
       
@@ -582,7 +595,7 @@ export default function PredictionPage() {
           </select>
         </div>
 
-        {AnoleDetectionService.isOnnxFrontendMode(detectionMode) &&
+        {(detectionMode === "auto" || AnoleDetectionService.isOnnxFrontendMode(detectionMode)) &&
           detectionResult?.clientTimings?.executionProvider && (
             <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
               Last run execution provider:{" "}
