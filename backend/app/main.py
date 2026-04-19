@@ -1,5 +1,5 @@
 """
-FastAPI backend for Florida Anole Species Classification
+FastAPI backend for Lizard Lens
 Serves the 3-stage ML pipeline: Detection -> Cropping -> Classification
 """
 import os
@@ -24,7 +24,7 @@ def get_cors_origins() -> list[str]:
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Florida Anole Classifier API",
+    title="Lizard Lens API",
     description="3-stage ML pipeline for detecting and classifying Florida anole species",
     version="1.0.0",
     docs_url="/api/docs",
@@ -45,7 +45,7 @@ async def root():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "message": "Florida Anole Classifier API is running",
+        "message": "Lizard Lens API is running",
         "version": "1.0.0"
     }
 

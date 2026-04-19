@@ -504,7 +504,7 @@ export default function PredictionPage() {
 
   return (
     <div className="container" style={{ textAlign: "center" }}>
-      <h1 style={{ color: "#2E7D32", fontSize: "2.5rem", marginBottom: "0.5rem" }}>🦎 Anole Species Classification</h1>
+      <h1 style={{ color: "#2E7D32", fontSize: "2.5rem", marginBottom: "0.5rem" }}>🦎 Lizard Lens</h1>
       
       {/* Back to home + inference location */}
       <div

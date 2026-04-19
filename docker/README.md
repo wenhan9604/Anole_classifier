@@ -1,6 +1,6 @@
 # Docker Configuration
 
-This directory contains all Docker-related configuration files for the Florida Anole Classifier project.
+This directory contains all Docker-related configuration files for the Lizard Lens project.
 
 ## Files
 

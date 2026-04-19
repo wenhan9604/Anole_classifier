@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Florida Anole Classifier Backend
+# Multi-stage Dockerfile for Lizard Lens Backend
 FROM python:3.11-slim as base
 
 # Set working directory

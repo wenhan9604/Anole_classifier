@@ -1,9 +1,9 @@
 #!/bin/bash
-# Quick start script for Florida Anole Classifier development
+# Quick start script for Lizard Lens development
 
 set -e
 
-echo "🦎 Florida Anole Classifier - Development Setup"
+echo "🦎 Lizard Lens - Development Setup"
 echo "================================================"
 
 # Parse command line arguments

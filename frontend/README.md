@@ -1,4 +1,4 @@
-# Florida Anole Classifier - Frontend
+# Lizard Lens - Frontend
 
 A React web application for identifying and classifying Florida anole species from uploaded images. The app provides a user-friendly interface for species detection with confidence scoring and citizen science integration.
 

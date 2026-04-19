@@ -1,4 +1,4 @@
-# Florida Anole Classifier
+# Lizard Lens
 
 A full-stack web application for detecting and classifying Florida anole species from uploaded images using a 3-stage machine learning pipeline.
 

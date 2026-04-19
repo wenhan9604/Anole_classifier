@@ -1,4 +1,4 @@
-# Frontend Dockerfile for Florida Anole Classifier
+# Frontend Dockerfile for Lizard Lens
 FROM node:20-alpine as build
 
 WORKDIR /app

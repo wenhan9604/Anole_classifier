@@ -63,7 +63,7 @@ async def create_observation(
     obs_data = {
         "observation": {
             "species_guess": scientific_name,  # iNat uses species_guess or taxon_id
-            "description": f"{notes}\n\nIdentified as {species} with {confidence:.1%} confidence by Anole Classifier.",
+            "description": f"{notes}\n\nIdentified as {species} with {confidence:.1%} confidence by Lizard Lens.",
             "observed_on_string": "2024-03-14", # TODO: Use current date or actual capture date
         }
     }

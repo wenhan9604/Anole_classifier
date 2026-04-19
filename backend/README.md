@@ -1,4 +1,4 @@
-# Florida Anole Classifier - Backend API
+# Lizard Lens - Backend API
 
 FastAPI backend serving the 3-stage ML pipeline for anole species detection and classification.
 

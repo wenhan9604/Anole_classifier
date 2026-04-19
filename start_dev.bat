@@ -1,7 +1,7 @@
 @echo off
-REM Quick start script for Florida Anole Classifier development (Windows)
+REM Quick start script for Lizard Lens development (Windows)
 
-echo 🦎 Florida Anole Classifier - Development Setup
+echo 🦎 Lizard Lens - Development Setup
 echo ================================================
 echo.
 

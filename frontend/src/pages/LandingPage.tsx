@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 export default function LandingPage() {
   return (
     <div className="container" style={{ textAlign: "center", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-      <h1 style={{ fontSize: "2.5rem", marginBottom: "1rem", color: "#2E7D32", fontWeight: "bold" }}>🦎 Florida Anole Classification</h1>
+      <h1 style={{ fontSize: "2.5rem", marginBottom: "1rem", color: "#2E7D32", fontWeight: "bold" }}>🦎 Lizard Lens</h1>
       <p style={{ fontSize: "1rem", marginBottom: "2rem", color: "#666" }}>
         Upload an image of an anole to classify its species and contribute to citizen science!
       </p>
