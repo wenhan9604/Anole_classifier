@@ -132,7 +132,6 @@ export default function PredictionPage() {
     if (detectionMode === 'backend' || detectionMode === 'backend-pytorch') {
       void AnoleDetectionService.disposeClientOnnx();
     }
-    // Keep client sessions for 'auto' and explicit client modes until route unmount / dispose effect above.
   }, [detectionMode]);
 
   // Cleanup timeout on unmount
