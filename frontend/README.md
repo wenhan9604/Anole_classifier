@@ -8,11 +8,11 @@ A React web application for identifying and classifying Florida anole species fr
 - **Multi-Detection**: Can detect multiple lizards in a single image
 - **Confidence Scoring**: Shows confidence levels for each species prediction with visual indicators
 - **Mobile Support**: Responsive design optimized for mobile devices
-- **Citizen Science**: Integration with iNaturalist for contributing observations (currently simulated)
+- **Citizen Science**: iNaturalist OAuth runs on the API (`VITE_API_BASE_URL`); the browser stores only an HTTP-only session cookie. Upload posts the image to `/api/observations` with credentials.
 
 ## Current Status
 
-The application currently uses hardcoded mock predictions for testing the UI/UX flow. The prediction system randomly generates species classifications with confidence scores, and the iNaturalist upload is simulated. These will be replaced with actual machine learning model integration and real API calls.
+Set **`VITE_API_BASE_URL`** to your FastAPI origin (same scheme/host you use for `/api/predict`). The prediction page uses that API for inference and for **Connect iNaturalist** / **Upload observation**. After OAuth, configure the API to redirect back to e.g. `https://your-site/predict?inat=connected` via `INAT_FRONTEND_SUCCESS_URL`.
 
 ## How to Launch
 
@@ -70,6 +70,5 @@ npm run preview
 
 ## Next Steps
 
-- Integrate actual machine learning model for species classification
-- Implement real iNaturalist API authentication and upload functionality
-- Add support for all 5 Florida anole species in the prediction system
+- Tune iNaturalist observation fields (date, taxon_id vs species_guess) as needed
+- Optional: persist OAuth tokens in Redis/DB instead of in-memory store for multi-instance APIs
