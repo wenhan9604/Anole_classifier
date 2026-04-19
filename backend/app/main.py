@@ -2,10 +2,17 @@
 FastAPI backend for Florida Anole Species Classification
 Serves the 3-stage ML pipeline: Detection -> Cropping -> Classification
 """
-import os
 import logging
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Load backend/.env for local dev (uvicorn does not load it automatically)
+_backend_dir = Path(__file__).resolve().parent.parent
+load_dotenv(_backend_dir / ".env")
 
 from .routers import observations, species, auth, predict
 
