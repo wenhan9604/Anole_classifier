@@ -26,7 +26,7 @@ function normalizeInferenceModeForSelect(mode: DetectionMode): DetectionMode {
 }
 
 const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
-  { value: "auto", label: "Auto — this device if viable, else server" },
+  { value: "auto", label: "Auto" },
   { value: "backend", label: "Server — PyTorch (CPU)" },
   { value: "onnx-frontend-auto", label: "This device — GPU if available (WebGPU or WASM)" },
   { value: "onnx-frontend-wasm", label: "This device — WASM only (no WebGPU)" },
