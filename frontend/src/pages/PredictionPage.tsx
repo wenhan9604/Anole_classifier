@@ -7,8 +7,12 @@ import {
 } from "../services/AnoleDetectionService";
 import { ResizableBoundingBox } from "../components/ResizableBoundingBox";
 import { toast } from 'react-hot-toast';
+import {
+  iNaturalistAPI,
+  getCurrentLocation,
+  type iNaturalistAuthStatus,
+} from "../services/iNaturalistService";
 
-// Define the 5 Florida anole species (for reference)
 // Define the 5 Florida anole species (for reference)
 const FLORIDA_ANOLE_SPECIES = [
   { name: "Green Anole", scientific: "Anolis carolinensis", common: "American Green Anole" },
@@ -26,6 +30,7 @@ function normalizeInferenceModeForSelect(mode: DetectionMode): DetectionMode {
 }
 
 const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
+  { value: "auto", label: "Auto" },
   { value: "backend", label: "Server — PyTorch (CPU)" },
   { value: "onnx-frontend-auto", label: "This device — GPU if available (WebGPU or WASM)" },
   { value: "onnx-frontend-wasm", label: "This device — WASM only (no WebGPU)" },
@@ -34,6 +39,8 @@ const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
 
 function detectionModeToGpuQuery(mode: DetectionMode): string | null {
   switch (mode) {
+    case "auto":
+      return null;
     case "backend":
     case "backend-pytorch":
       return null;
@@ -82,8 +89,10 @@ export default function PredictionPage() {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToiNaturalist, setUploadingToiNaturalist] = useState(false);
+  const [inatStatus, setInatStatus] = useState<iNaturalistAuthStatus | null>(null);
+  const [inatStatusLoading, setInatStatusLoading] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [detectionMode, setDetectionMode] = useState<DetectionMode>('backend');
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>('auto');
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingBox, setDrawingBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
@@ -95,7 +104,7 @@ export default function PredictionPage() {
 
 
 
-  // Inference mode from ?gpu=… (client-side = WebGPU-first auto, with WASM fallback)
+  // Inference mode from ?gpu=… (default / no param = Auto probe; client-side = WebGPU-first auto)
   useEffect(() => {
     const gpuParam = searchParams.get('gpu');
     if (gpuParam === 'client-side' || gpuParam === 'client') {
@@ -110,11 +119,45 @@ export default function PredictionPage() {
     } else if (gpuParam === 'server') {
       setDetectionMode('backend');
       console.log('Backend PyTorch (CPU) via ?gpu=server');
+    } else if (gpuParam === 'auto' || gpuParam == null) {
+      setDetectionMode('auto');
+      console.log('Auto inference (probe client ONNX vs server)');
     } else {
-      setDetectionMode('backend');
-      console.log('Backend PyTorch-CPU (default)');
+      setDetectionMode('auto');
+      console.log('Auto inference (default; unrecognized ?gpu= value)');
     }
   }, [searchParams]);
+
+  const refreshInatStatus = useCallback(async () => {
+    if (!iNaturalistAPI.isBackendConfigured()) {
+      setInatStatus(null);
+      return;
+    }
+    setInatStatusLoading(true);
+    try {
+      const s = await iNaturalistAPI.getAuthStatus();
+      setInatStatus(s);
+    } catch (e) {
+      console.warn("iNaturalist status:", e);
+      setInatStatus({ connected: false, expiresAt: null });
+    } finally {
+      setInatStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshInatStatus();
+  }, [refreshInatStatus]);
+
+  useEffect(() => {
+    if (searchParams.get("inat") === "connected") {
+      toast.success("Connected to iNaturalist");
+      void refreshInatStatus();
+      const next = new URLSearchParams(searchParams);
+      next.delete("inat");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams, refreshInatStatus]);
 
   useEffect(() => {
     return () => {
@@ -139,6 +182,9 @@ export default function PredictionPage() {
 
   const handleInferenceLocationChange = useCallback(
     (mode: DetectionMode) => {
+      if (mode === "auto") {
+        AnoleDetectionService.invalidateClientOnnxProbe();
+      }
       const canonical =
         mode === "backend-pytorch"
           ? "backend"
@@ -178,9 +224,12 @@ export default function PredictionPage() {
     
     try {
       // Use AnoleDetectionService with the selected detection mode
-      const modeLabel = AnoleDetectionService.isOnnxFrontendMode(detectionMode)
-        ? `client-side ONNX (${AnoleDetectionService.modeToOnnxPreference(detectionMode)})`
-        : "backend PyTorch-CPU (best.pt)";
+      const modeLabel =
+        detectionMode === "auto"
+          ? "Auto (client ONNX if viable, else server)"
+          : AnoleDetectionService.isOnnxFrontendMode(detectionMode)
+            ? `client-side ONNX (${AnoleDetectionService.modeToOnnxPreference(detectionMode)})`
+            : "backend PyTorch-CPU (best.pt)";
       console.log(`Starting detection with ${modeLabel}...`);
       const data = await AnoleDetectionService.detect(selectedFile, detectionMode);
       
@@ -244,22 +293,70 @@ export default function PredictionPage() {
     }
   };
 
-  const handleUploadToiNaturalist = async () => {
+  const handleConnectInaturalist = () => {
+    try {
+      iNaturalistAPI.connectAccount();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Cannot start iNaturalist login");
+    }
+  };
+
+  const handleDisconnectInaturalist = async () => {
+    try {
+      await iNaturalistAPI.disconnect();
+      await refreshInatStatus();
+      toast.success("Disconnected from iNaturalist");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+    }
+  };
+
+  const handleUploadObservationToInat = async () => {
     if (!detectionResult || !selectedFile) return;
-    
+    if (!inatStatus?.connected) {
+      toast.error("Connect to iNaturalist first");
+      return;
+    }
+
+    const predictions = detectionResult.predictions.filter(
+      (p) => p.species !== "Failed" && p.confidence > 0,
+    );
+    const best =
+      predictions.length > 0
+        ? [...predictions].sort((a, b) => b.confidence - a.confidence)[0]
+        : null;
+    if (!best) {
+      toast.error("No valid species prediction to upload");
+      return;
+    }
+
     setUploadingToiNaturalist(true);
     toast.dismiss();
-    toast.loading('Simulating upload...');
-    
-    // Simulate network delay
-    setTimeout(() => {
-      setUploadingToiNaturalist(false);
-      toast.dismiss();
-      toast.success('Work in progress: Real iNaturalist upload integration pending', {
-        icon: '🚧',
-        duration: 4000
+    const toastId = toast.loading("Uploading observation…");
+    try {
+      const location = await getCurrentLocation();
+      await iNaturalistAPI.uploadObservation({
+        species: best.species,
+        scientificName: best.scientificName,
+        confidence: best.confidence,
+        count: best.count ?? 1,
+        imageFile: selectedFile,
+        location: location ?? undefined,
       });
-    }, 1500);
+      toast.dismiss(toastId);
+      toast.success("Observation uploaded to iNaturalist");
+    } catch (e) {
+      toast.dismiss(toastId);
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      if (msg.includes("401")) {
+        toast.error("Session expired. Connect to iNaturalist again.");
+        await refreshInatStatus();
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setUploadingToiNaturalist(false);
+    }
   };
 
   const handleSpeciesCorrection = (index: number, newSpeciesName: string) => {
@@ -582,7 +679,7 @@ export default function PredictionPage() {
           </select>
         </div>
 
-        {AnoleDetectionService.isOnnxFrontendMode(detectionMode) &&
+        {(detectionMode === "auto" || AnoleDetectionService.isOnnxFrontendMode(detectionMode)) &&
           detectionResult?.clientTimings?.executionProvider && (
             <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
               Last run execution provider:{" "}
@@ -1108,33 +1205,128 @@ export default function PredictionPage() {
             </div>
           ))}
           
-          {/* iNaturalist Upload Section */}
-
-          {/* iNaturalist Upload Button */}
-          <div style={{ textAlign: "center", marginTop: "1rem" }}>
-            <button
-              onClick={handleUploadToiNaturalist}
-              disabled={uploadingToiNaturalist}
-              className="inaturalist-button"
-            >
-              {uploadingToiNaturalist ? (
-                <>
-                  <div style={{
-                    width: "16px",
-                    height: "16px",
-                    border: "2px solid #ffffff",
-                    borderTop: "2px solid transparent",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite"
-                  }} />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  Upload to iNaturalist
-                </>
-              )}
-            </button>
+          {/* iNaturalist: OAuth on API + upload */}
+          <div
+            style={{
+              marginTop: "1rem",
+              padding: "1rem",
+              borderRadius: "8px",
+              border: "1px solid #bee5eb",
+              backgroundColor: "#f1fbfd",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ margin: "0 0 0.5rem 0", color: "#0c5460", fontWeight: 600 }}>
+              Share on iNaturalist
+            </p>
+            {!iNaturalistAPI.isBackendConfigured() ? (
+              <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", color: "#0c5460" }}>
+                Set <code style={{ fontSize: "0.85rem" }}>VITE_API_BASE_URL</code> to your API
+                origin so OAuth and uploads can use your backend session.
+              </p>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", color: "#0c5460" }}>
+                  {inatStatusLoading
+                    ? "Checking iNaturalist connection…"
+                    : inatStatus?.connected
+                      ? "You are connected. Upload uses your session on the server (no token in the browser)."
+                      : "Connect once with iNaturalist, then upload this image as an observation."}
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  {!inatStatusLoading && !inatStatus?.connected && (
+                    <button
+                      type="button"
+                      onClick={handleConnectInaturalist}
+                      disabled={uploadingToiNaturalist}
+                      className="inaturalist-button"
+                    >
+                      Connect iNaturalist
+                    </button>
+                  )}
+                  {!inatStatusLoading && inatStatus?.connected && (
+                    <>
+                      <span
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#155724",
+                          fontWeight: 600,
+                          padding: "4px 10px",
+                          background: "#d4edda",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        Connected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectInaturalist}
+                        disabled={uploadingToiNaturalist}
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: "6px",
+                          border: "1px solid #6c757d",
+                          background: "#fff",
+                          color: "#495057",
+                          cursor: uploadingToiNaturalist ? "not-allowed" : "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUploadObservationToInat}
+                  disabled={
+                    uploadingToiNaturalist ||
+                    inatStatusLoading ||
+                    !inatStatus?.connected
+                  }
+                  className="inaturalist-button"
+                >
+                  {uploadingToiNaturalist ? (
+                    <>
+                      <div
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          border: "2px solid #ffffff",
+                          borderTop: "2px solid transparent",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite",
+                        }}
+                      />
+                      Uploading…
+                    </>
+                  ) : (
+                    <>Upload observation</>
+                  )}
+                </button>
+                <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.8rem", color: "#6c757d" }}>
+                  <a
+                    href="https://www.inaturalist.org/observations/upload"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#138496" }}
+                  >
+                    Open iNaturalist upload page
+                  </a>{" "}
+                  if you prefer to post manually.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}

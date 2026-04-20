@@ -47,9 +47,116 @@ export type DetectionMode =
   | 'onnx-frontend'
   | 'onnx-frontend-auto'
   | 'onnx-frontend-gpu'
-  | 'onnx-frontend-wasm';
+  | 'onnx-frontend-wasm'
+  /** Prefer client ONNX when asset/network probe passes; else server PyTorch. */
+  | 'auto';
 
 export class AnoleDetectionService {
+  /** Cached result of client-side ONNX environment probe (HEAD requests). */
+  private static clientOnnxProbeResult: boolean | null = null;
+  private static clientOnnxProbeInFlight: Promise<boolean> | null = null;
+
+  /** Clear cached probe (e.g. when user switches back to Auto in the UI). */
+  static invalidateClientOnnxProbe(): void {
+    this.clientOnnxProbeResult = null;
+    this.clientOnnxProbeInFlight = null;
+  }
+
+  /**
+   * Whether browser ONNX is likely to work: models + WASM loader reachable,
+   * sane MIME for .mjs, and network/device hints do not favor server-only.
+   */
+  static async clientOnnxEnvironmentOk(): Promise<boolean> {
+    if (this.clientOnnxProbeResult !== null) {
+      return this.clientOnnxProbeResult;
+    }
+    if (this.clientOnnxProbeInFlight) {
+      return this.clientOnnxProbeInFlight;
+    }
+    this.clientOnnxProbeInFlight = this.probeClientOnnxEnvironment()
+      .then((ok) => {
+        this.clientOnnxProbeResult = ok;
+        return ok;
+      })
+      .finally(() => {
+        this.clientOnnxProbeInFlight = null;
+      });
+    return this.clientOnnxProbeInFlight;
+  }
+
+  private static async probeClientOnnxEnvironment(): Promise<boolean> {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    const nav = navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+      deviceMemory?: number;
+    };
+
+    if (nav.connection?.saveData) {
+      console.log('Auto inference: server preferred (save-data)');
+      return false;
+    }
+    const slow = new Set(['slow-2g', '2g']);
+    if (nav.connection?.effectiveType && slow.has(nav.connection.effectiveType)) {
+      console.log(`Auto inference: server preferred (network ${nav.connection.effectiveType})`);
+      return false;
+    }
+    if (typeof nav.deviceMemory === 'number' && nav.deviceMemory < 4) {
+      console.log('Auto inference: server preferred (deviceMemory < 4 GiB)');
+      return false;
+    }
+
+    const origin = window.location.origin;
+    /** SPA fallback is often index.html (~0.5–3 KiB) with text/html — not a real ONNX. */
+    const MIN_ONNX_BYTES = 500_000;
+    const assets: { url: string; requireJavascriptMime?: boolean }[] = [
+      { url: `${origin}/models/yolo_best.onnx` },
+      { url: `${origin}/models/swin_model.onnx` },
+      { url: `${origin}/ort-wasm-simd-threaded.jsep.mjs`, requireJavascriptMime: true },
+    ];
+
+    try {
+      for (const { url, requireJavascriptMime } of assets) {
+        const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+        if (!res.ok) {
+          console.log('Auto inference: server preferred (asset HEAD failed)', url, res.status);
+          return false;
+        }
+        if (url.endsWith('.onnx')) {
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          if (ct.includes('html')) {
+            console.log('Auto inference: server preferred (.onnx URL serves HTML, likely missing file):', url);
+            return false;
+          }
+          const len = Number(res.headers.get('content-length'));
+          if (!Number.isFinite(len) || len < MIN_ONNX_BYTES) {
+            console.log(
+              'Auto inference: server preferred (.onnx too small or unknown size — not a real model):',
+              url,
+              'content-length=',
+              res.headers.get('content-length'),
+            );
+            return false;
+          }
+        }
+        if (requireJavascriptMime) {
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          if (!ct.includes('javascript')) {
+            console.log('Auto inference: server preferred (.mjs MIME not JavaScript):', ct || '(empty)');
+            return false;
+          }
+        }
+      }
+      console.log('Auto inference: browser ONNX looks viable — will try client first');
+      return true;
+    } catch {
+      console.log('Auto inference: server preferred (probe error)');
+      return false;
+    }
+  }
+
   /**
    * Map UI / URL detection mode to ONNX Runtime execution preference.
    */
@@ -238,6 +345,18 @@ export class AnoleDetectionService {
     if (mode === 'backend-pytorch') {
       return this.detectBackend(imageFile, true);
     }
+    if (mode === 'auto') {
+      const useClient = await this.clientOnnxEnvironmentOk();
+      if (useClient) {
+        try {
+          return await this.detectFrontendOnnx(imageFile, 'auto');
+        } catch (error) {
+          console.warn('Auto: client ONNX failed, using server PyTorch:', error);
+          return this.detectBackend(imageFile, true);
+        }
+      }
+      return this.detectBackend(imageFile, true);
+    }
     if (this.isOnnxFrontendMode(mode)) {
       const pref = this.modeToOnnxPreference(mode);
       try {
@@ -321,6 +440,11 @@ export class AnoleDetectionService {
     mode: DetectionMode = 'backend',
   ): Promise<AnolePrediction> {
     try {
+      let resolvedMode: DetectionMode = mode;
+      if (mode === 'auto') {
+        resolvedMode = (await this.clientOnnxEnvironmentOk()) ? 'onnx-frontend-auto' : 'backend';
+      }
+
       const img = await this.loadImage(imageFile);
 
       const [x1, y1, x2, y2] = box;
@@ -329,8 +453,8 @@ export class AnoleDetectionService {
 
       const croppedCanvas = await this.cropImage(img, x1, y1, width, height);
 
-      if (this.isOnnxFrontendMode(mode)) {
-        const pref = this.modeToOnnxPreference(mode);
+      if (this.isOnnxFrontendMode(resolvedMode)) {
+        const pref = this.modeToOnnxPreference(resolvedMode);
         await this.initializeOnnx(undefined, undefined, pref);
 
         const classification = await OnnxDetectionService.classifyAnole(croppedCanvas);
@@ -357,7 +481,7 @@ export class AnoleDetectionService {
             const formData = new FormData();
             formData.append('file', croppedFile);
 
-            const url = `${API_URL}/api/predict?use_onnx=${mode !== 'backend' && mode !== 'backend-pytorch'}`;
+            const url = `${API_URL}/api/predict?use_onnx=${resolvedMode !== 'backend' && resolvedMode !== 'backend-pytorch'}`;
             const response = await fetch(url, {
               method: 'POST',
               body: formData,

@@ -56,6 +56,31 @@ npm run dev -- --host --port 5173
 
 Open the UI at `http://localhost:5173`. The frontend calls the backend at `http://localhost:8000`.
 
+## iNaturalist OAuth
+
+Register an app at [iNaturalist OAuth applications](https://www.inaturalist.org/oauth/applications). Set environment variables (see `.env.example`):
+
+| Variable | Purpose |
+|----------|---------|
+| `INAT_CLIENT_ID` | OAuth client id |
+| `INAT_CLIENT_SECRET` | OAuth secret (server only) |
+| `INAT_REDIRECT_URI` | Must match the registered callback URL, e.g. `https://api.yoursite.com/api/auth/inat/callback` |
+| `INAT_FRONTEND_SUCCESS_URL` | Where to send the browser after success, e.g. `https://app.yoursite.com/predict?inat=connected` |
+| `INAT_SCOPES` | Optional space-separated scopes |
+| `INAT_COOKIE_SAMESITE` | `lax` (same-site) or `none` (cross-site API + frontend; requires HTTPS) |
+
+Endpoints:
+
+- `GET /api/auth/inat/login` — starts OAuth (sets HTTP-only session cookie)
+- `GET /api/auth/inat/callback` — iNaturalist redirects here with `code` and `state`
+- `GET /api/auth/inat/status` — `{ "connected": bool, "expiresAt": number | null }`
+- `POST /api/auth/inat/logout` — clears server tokens and cookie
+
+`POST /api/observations` requires a connected session (same cookie). Ensure `CORS_ORIGINS` includes your frontend origin and the frontend uses `credentials: 'include'` (`VITE_API_BASE_URL`).
+
+Dev-only: `ENABLE_INAT_MOCK_AUTH=true` enables `POST /api/auth/mock-login` (disabled by default).
+
+Run OAuth tests: `cd backend && pytest tests/test_inat_oauth.py -v`
 
 **Request:**
 - `file`: Image file (multipart/form-data)
