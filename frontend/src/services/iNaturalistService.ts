@@ -18,15 +18,27 @@ export interface iNaturalistAuthStatus {
   expiresAt: number | null;
 }
 
+/**
+ * Base URL for credentialed API calls (OAuth cookie + uploads).
+ * - If `VITE_API_BASE_URL` is set at build time, use it (e.g. local dev: API on another port).
+ * - Otherwise in the browser, use same origin (empty string → paths like `/api/...`), which
+ *   matches production: Nginx serves the SPA and proxies `/api` to the backend.
+ */
 function getBackendBaseURL(): string | null {
-  if (typeof import.meta === "undefined" || !(import.meta as any).env) return null;
-  const base = (import.meta as any).env.VITE_API_BASE_URL as string | undefined;
-  if (!base || !String(base).trim()) return null;
-  return String(base).replace(/\/$/, "");
+  if (typeof import.meta !== "undefined" && (import.meta as any).env) {
+    const raw = (import.meta as any).env.VITE_API_BASE_URL as string | undefined;
+    if (raw != null && String(raw).trim()) {
+      return String(raw).replace(/\/$/, "");
+    }
+  }
+  if (typeof window !== "undefined") {
+    return "";
+  }
+  return null;
 }
 
 class iNaturalistService {
-  /** True when `VITE_API_BASE_URL` is set (OAuth + upload require the API). */
+  /** True when we can reach the API (explicit base URL or same-origin in the browser). */
   isBackendConfigured(): boolean {
     return getBackendBaseURL() !== null;
   }
@@ -34,7 +46,7 @@ class iNaturalistService {
   /** GET /api/auth/inat/status — sends session cookie. */
   async getAuthStatus(): Promise<iNaturalistAuthStatus> {
     const base = getBackendBaseURL();
-    if (!base) {
+    if (base === null) {
       return { connected: false, expiresAt: null };
     }
     const res = await fetch(`${base}/api/auth/inat/status`, {
@@ -55,8 +67,8 @@ class iNaturalistService {
   /** Full-page navigation to start OAuth (sets session cookie on redirect). */
   connectAccount(): void {
     const base = getBackendBaseURL();
-    if (!base) {
-      throw new Error("VITE_API_BASE_URL is not set; cannot connect to iNaturalist.");
+    if (base === null) {
+      throw new Error("Cannot connect to iNaturalist outside a browser session.");
     }
     window.location.href = `${base}/api/auth/inat/login`;
   }
@@ -64,7 +76,7 @@ class iNaturalistService {
   /** Clear server-side iNat tokens and session cookie. */
   async disconnect(): Promise<void> {
     const base = getBackendBaseURL();
-    if (!base) return;
+    if (base === null) return;
     await fetch(`${base}/api/auth/inat/logout`, {
       method: "POST",
       credentials: "include",
@@ -76,8 +88,8 @@ class iNaturalistService {
    */
   async uploadObservation(observation: iNaturalistObservation): Promise<boolean> {
     const base = getBackendBaseURL();
-    if (!base) {
-      throw new Error("VITE_API_BASE_URL is not set; cannot upload observation.");
+    if (base === null) {
+      throw new Error("Cannot upload observation outside a browser session.");
     }
 
     const formData = new FormData();
@@ -110,7 +122,7 @@ class iNaturalistService {
 
   async getUserObservations(): Promise<unknown[]> {
     const base = getBackendBaseURL();
-    if (!base) return [];
+    if (base === null) return [];
     const res = await fetch(`${base}/api/observations`, { credentials: "include" });
     if (!res.ok) throw new Error("Failed to fetch observations");
     return await res.json();
@@ -118,8 +130,8 @@ class iNaturalistService {
 
   async searchSpecies(query: string): Promise<unknown[]> {
     const base = getBackendBaseURL();
-    if (!base) return [];
-    const url = new URL(`${base}/api/species/search`);
+    if (base === null) return [];
+    const url = new URL(`${base}/api/species/search`, window.location.origin);
     url.searchParams.set("q", query);
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Search failed");
@@ -128,7 +140,7 @@ class iNaturalistService {
 
   async getSpeciesDetails(scientificName: string): Promise<unknown> {
     const base = getBackendBaseURL();
-    if (!base) return null;
+    if (base === null) return null;
     const res = await fetch(
       `${base}/api/species/${encodeURIComponent(scientificName)}`,
     );

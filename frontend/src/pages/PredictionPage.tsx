@@ -12,6 +12,7 @@ import {
   getCurrentLocation,
   type iNaturalistAuthStatus,
 } from "../services/iNaturalistService";
+import { PersistenceService } from "../services/PersistenceService";
 
 // Define the 5 Florida anole species (for reference)
 const FLORIDA_ANOLE_SPECIES = [
@@ -94,6 +95,7 @@ export default function PredictionPage() {
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [detectionMode, setDetectionMode] = useState<DetectionMode>('auto');
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
+  const [isRestored, setIsRestored] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingBox, setDrawingBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [isClassifyingDrawnBox, setIsClassifyingDrawnBox] = useState(false);
@@ -170,6 +172,50 @@ export default function PredictionPage() {
       void AnoleDetectionService.disposeClientOnnx();
     }
   }, [detectionMode]);
+
+  // Persistence: Restore image and result on mount
+  useEffect(() => {
+    const restore = async () => {
+      try {
+        const [savedFile, savedResult] = await Promise.all([
+          PersistenceService.loadImage(),
+          PersistenceService.loadResult()
+        ]);
+
+        if (savedFile) {
+          setSelectedFile(savedFile);
+          const url = URL.createObjectURL(savedFile);
+          setPreviewUrl(url);
+          console.log("Restored image from persistence");
+        }
+
+        if (savedResult) {
+          setDetectionResult(savedResult);
+          console.log("Restored detection result from persistence");
+        }
+      } catch (e) {
+        console.warn("Failed to restore from persistence:", e);
+      } finally {
+        setIsRestored(true);
+      }
+    };
+    void restore();
+  }, []);
+
+  // Persistence: Save image when it changes
+  useEffect(() => {
+    if (isRestored && selectedFile) {
+      void PersistenceService.saveImage(selectedFile);
+    }
+  }, [selectedFile, isRestored]);
+
+  // Persistence: Save result when it changes
+  useEffect(() => {
+    if (isRestored) {
+      // We save null too, so clearing works
+      void PersistenceService.saveResult(detectionResult);
+    }
+  }, [detectionResult, isRestored]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
