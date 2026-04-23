@@ -16,7 +16,7 @@ _backend_dir = Path(__file__).resolve().parent.parent
 if os.getenv("ANOLE_SKIP_DOTENV") != "1":
     load_dotenv(_backend_dir / ".env")
 
-from .routers import observations, species, auth, predict
+from .routers import observations, species, auth, predict, metrics
 
 # Configure logging
 logging.basicConfig(
@@ -77,6 +77,7 @@ app.include_router(observations.router, prefix="/api", tags=["observations"])
 app.include_router(species.router, prefix="/api", tags=["species"])
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(predict.router, prefix="/api", tags=["predict"])
+app.include_router(metrics.router, prefix="/api", tags=["metrics"])
 # Some nginx configs rewrite `/api/foo` -> `/foo` before proxying. FastAPI only
 # registered `/api/predict` above, so those proxies returned 404. Expose the same
 # predict routes without the `/api` prefix so both URL shapes work.

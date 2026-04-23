@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import AppMetrics from "../components/AppMetrics";
 
 export default function LandingPage() {
   return (
@@ -88,6 +89,7 @@ export default function LandingPage() {
               🔍 Classify
             </Link>
           </div>
+          <AppMetrics />
         </div>
       </div>
     </div>
