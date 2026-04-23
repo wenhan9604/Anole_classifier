@@ -59,6 +59,7 @@ Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
 # Datasets
 Dataset/
 !Dataset/README.md
+Spring_2025/data/int-anoles/
 
 # IDE
 .cursor/
