@@ -35,6 +35,7 @@ conda-meta/
 
 # Backend
 backend/.env
+.env
 backend/models/
 backend/inference/
 
