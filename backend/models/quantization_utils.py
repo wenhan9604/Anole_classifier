@@ -12,12 +12,10 @@ Functions:
 
 import os
 import logging
-from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Any, Union
 
 try:
     import onnx
-    from onnx import numpy_helper
     from onnxruntime.quantization import quantize_dynamic, QuantType
     import onnxruntime as ort
 except ImportError as e:
@@ -30,11 +28,29 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 
 
+# ONNX data type code to string name mapping
+DTYPE_MAP = {
+    1: "float32",
+    2: "uint8",
+    3: "int8",
+    4: "uint16",
+    5: "int16",
+    6: "int32",
+    7: "int64",
+    8: "string",
+    9: "bool",
+    10: "float16",
+    11: "float64",
+    12: "uint32",
+    13: "uint64",
+}
+
+
 def quantize_model(
     model_path: str,
     output_path: str,
     quantization_type: QuantType = QuantType.QUInt8,
-) -> Dict[str, float]:
+) -> Dict[str, Union[str, float]]:
     """
     Quantize an ONNX model using dynamic int8 quantization.
     
@@ -160,7 +176,6 @@ def validate_quantized_model(model_path: str) -> bool:
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
     
-    file_exists = True
     onnx_format_valid = False
     runtime_loadable = False
     
@@ -192,12 +207,12 @@ def validate_quantized_model(model_path: str) -> bool:
         logger.warning(error_msg)
         validation_errors.append(error_msg)
     
-    all_valid = file_exists and onnx_format_valid and runtime_loadable
+    all_valid = onnx_format_valid and runtime_loadable
     
     return all_valid
 
 
-def get_model_info(model_path: str) -> Dict:
+def get_model_info(model_path: str) -> Dict[str, Any]:
     """
     Extract metadata from an ONNX model.
     
@@ -247,22 +262,7 @@ def get_model_info(model_path: str) -> Dict:
         # Helper function to get dtype name from ONNX type code
         def get_dtype_name(dtype_code):
             """Map ONNX data type code to string name."""
-            dtype_map = {
-                1: "float32",
-                2: "uint8",
-                3: "int8",
-                4: "uint16",
-                5: "int16",
-                6: "int32",
-                7: "int64",
-                8: "string",
-                9: "bool",
-                10: "float16",
-                11: "float64",
-                12: "uint32",
-                13: "uint64",
-            }
-            return dtype_map.get(dtype_code, f"type_{dtype_code}")
+            return DTYPE_MAP.get(dtype_code, f"type_{dtype_code}")
         
         # Extract inputs
         inputs = []
