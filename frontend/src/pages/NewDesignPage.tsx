@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { AnoleDetectionService, type AnolePrediction } from '../services/AnoleDetectionService';
+import { AnoleDetectionService } from '../services/AnoleDetectionService';
 import { ResizableBoundingBox } from '../components/ResizableBoundingBox';
 import { iNaturalistAPI, getCurrentLocation, type iNaturalistAuthStatus } from '../services/iNaturalistService';
 import { PersistenceService } from '../services/PersistenceService';
@@ -63,7 +63,7 @@ function Skeleton({ width = '100%', height = 20, borderRadius = 4, style = {} }:
   );
 }
 
-function SpeciesRibbon({ stats }: { stats: any }) {
+function SpeciesRibbon({ stats }: { stats: { observations: number, species_distribution: { name: string, count: number, sci: string, native: boolean }[] } | null }) {
   if (!stats) {
     return (
       <div>
@@ -83,7 +83,7 @@ function SpeciesRibbon({ stats }: { stats: any }) {
   const dist = stats?.species_distribution || [];
   
   // Merge real data with config for colors
-  const speciesData = dist.map((d: any) => {
+  const speciesData = dist.map((d) => {
     const config = SPECIES_CONFIG.find(c => c.name === d.name || d.name.includes(c.name)) || { color: '#888' };
     return {
       ...d,
@@ -108,7 +108,7 @@ function SpeciesRibbon({ stats }: { stats: any }) {
         overflow:'hidden', border:'1px solid var(--ink)', boxShadow:'0 1px 0 rgba(0,0,0,0.04)'
       }}>
         {speciesData.map((s, i) => (
-          <div key={s.id} title={`${s.name}: ${s.count}`} style={{
+          <div key={s.name} title={`${s.name}: ${s.count}`} style={{
             flex: s.count,
             background: s.color,
             borderRight: i < speciesData.length - 1 ? '1px solid rgba(0,0,0,0.15)' : 'none',
@@ -125,8 +125,8 @@ function SpeciesRibbon({ stats }: { stats: any }) {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:'18px 24px', marginTop:18 }}>
-        {speciesData.map((s: any) => (
-          <div key={s.id} style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+        {speciesData.map((s) => (
+          <div key={s.name} style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
             <div style={{
               width:10, height:10, marginTop:6, flexShrink:0,
               background:s.color,
@@ -214,7 +214,7 @@ function TopObservers({ observers, loading }: { observers: any[], loading?: bool
     <div style={{ marginTop: 20, border:'1px solid var(--rule)', background:'var(--paper)', padding:18, borderRadius:4 }}>
       <div className="mono" style={{ fontSize:10, letterSpacing:'0.15em', color:'var(--ink-3)', textTransform:'uppercase', marginBottom:12 }}>Top Contributors</div>
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        {observers.map((o, i) => (
+        {observers.map((o) => (
           <div key={o.login} style={{ display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:24, height:24, borderRadius:'50%', background:'var(--paper-3)', overflow:'hidden', border:'1px solid var(--rule)' }}>
               {o.icon_url ? <img src={o.icon_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : null}
