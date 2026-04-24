@@ -6,6 +6,7 @@ import torch
 from transformers import SwinForImageClassification, AutoImageProcessor
 import os
 from pathlib import Path
+from backend.models.quantization_utils import quantize_model, validate_quantized_model
 
 def export_swin_to_onnx():
     """Export Swin Transformer model to ONNX format"""
@@ -104,6 +105,52 @@ def export_swin_to_onnx():
         print(f"   ✗ ONNX export failed: {e}")
         return False
     
+    # Quantize ONNX models
+    print("\n7. Quantizing ONNX models...")
+    quantized_backend = None
+    quantized_frontend = None
+    
+    try:
+        backend_quantized_path = backend_output.replace(".onnx", "_quantized.onnx")
+        frontend_quantized_path = frontend_output.replace(".onnx", "_quantized.onnx")
+        
+        # Quantize backend model
+        print(f"   Quantizing backend to {backend_quantized_path}...")
+        backend_quant_info = quantize_model(backend_output, backend_quantized_path)
+        quantized_backend = backend_quantized_path
+        print(f"   ✓ Backend quantization complete")
+        print(f"     Original size: {backend_quant_info['original_size_mb']:.1f} MB")
+        print(f"     Quantized size: {backend_quant_info['quantized_size_mb']:.1f} MB")
+        print(f"     Size reduction: {backend_quant_info['size_reduction_percent']:.1f}%")
+        
+        # Quantize frontend model
+        try:
+            print(f"   Quantizing frontend to {frontend_quantized_path}...")
+            frontend_quant_info = quantize_model(frontend_output, frontend_quantized_path)
+            quantized_frontend = frontend_quantized_path
+            print(f"   ✓ Frontend quantization complete")
+            print(f"     Original size: {frontend_quant_info['original_size_mb']:.1f} MB")
+            print(f"     Quantized size: {frontend_quant_info['quantized_size_mb']:.1f} MB")
+            print(f"     Size reduction: {frontend_quant_info['size_reduction_percent']:.1f}%")
+        except Exception as frontend_error:
+            print(f"   ⚠ Frontend quantization failed: {frontend_error}")
+        
+        # Validate quantized models
+        if quantized_backend and validate_quantized_model(quantized_backend):
+            print(f"   ✓ Backend quantized model validation passed")
+        else:
+            print(f"   ⚠ Backend quantized model validation failed")
+            
+        if quantized_frontend and validate_quantized_model(quantized_frontend):
+            print(f"   ✓ Frontend quantized model validation passed")
+        else:
+            print(f"   ⚠ Frontend quantized model validation failed")
+            
+    except Exception as e:
+        print(f"   ⚠ Quantization failed: {e}")
+        quantized_backend = None
+        quantized_frontend = None
+    
     # Verify the exported model
     print("\n5. Verifying exported ONNX model...")
     try:
@@ -166,9 +213,17 @@ def export_swin_to_onnx():
     print("="*60)
     print(f"\nBackend model: {backend_output}")
     print(f"Frontend model: {frontend_output}")
+    if quantized_backend:
+        print(f"\nBackend quantized model: {quantized_backend}")
+    if quantized_frontend:
+        print(f"Frontend quantized model: {quantized_frontend}")
     print("\nNext steps:")
     print("1. For backend: Use with pipeline.py by setting use_onnx=True")
+    if quantized_backend:
+        print("   Or use quantized model with use_onnx=True and use_quantized=True")
     print("2. For frontend: npm install && npm run dev")
+    if quantized_frontend:
+        print("   Or use quantized model for better performance")
     print("\nTesting:")
     print("  Backend: python backend/example_onnx_usage.py")
     print("  Frontend: See frontend/ONNX_SETUP.md")
