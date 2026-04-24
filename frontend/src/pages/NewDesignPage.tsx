@@ -14,14 +14,6 @@ const SPECIES_CONFIG = [
   { id: 'Crested Anole',  name: 'Crested Anole',  sci: 'Anolis cristatellus',  native: false, color: '#6b8fa5' },
 ];
 
-const RECENT_OBS_MOCK = [
-  { id: 1, species: 'Green Anole', where: 'Gainesville, FL',  when: '2h ago',  conf: 0.94 },
-  { id: 2, species: 'Brown Anole', where: 'Miami, FL',        when: '5h ago',  conf: 0.97 },
-  { id: 3, species: 'Brown Anole', where: 'Tampa, FL',        when: '1d ago',  conf: 0.88 },
-  { id: 4, species: 'Green Anole', where: 'Orlando, FL',      when: '2d ago',  conf: 0.91 },
-  { id: 5, species: 'Knight Anole', where: 'Homestead, FL', when: '3d ago', conf: 0.82 },
-];
-
 // ============ ICONS ============
 const Icon = {
   Upload: (p: { s?: number }) => <svg viewBox="0 0 24 24" width={p.s||18} height={p.s||18} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v12"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>,
@@ -133,7 +125,7 @@ function SpeciesRibbon({ stats }: { stats: any }) {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:'18px 24px', marginTop:18 }}>
-        {speciesData.map(s => (
+        {speciesData.map((s: any) => (
           <div key={s.id} style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
             <div style={{
               width:10, height:10, marginTop:6, flexShrink:0,
@@ -175,7 +167,7 @@ function ActivityChart({ stats }: { stats: any }) {
   const max = Math.max(...data, 1);
   const W = 100, H = 32, step = W / (data.length - 1);
   const points = data.map((v: number, i: number) => [i*step, H - (v/max) * (H-2) - 1]);
-  const pathD = 'M ' + points.map(([x,y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' L ');
+  const pathD = 'M ' + points.map(([x,y]: [number, number]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' L ');
   const areaD = pathD + ` L ${W},${H} L 0,${H} Z`;
 
   return (
@@ -236,7 +228,7 @@ function TopObservers({ observers, loading }: { observers: any[], loading?: bool
   );
 }
 
-function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, setPreview }: { inatStatus: iNaturalistAuthStatus | null, selectedFile: File | null, setSelectedFile: (f: File | null) => void, preview: string | null, setPreview: (s: string | null) => void }) {
+function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, setPreview, stats, setStats }: { inatStatus: iNaturalistAuthStatus | null, selectedFile: File | null, setSelectedFile: (f: File | null) => void, preview: string | null, setPreview: (s: string | null) => void, stats: any, setStats: (s: any) => void }) {
   const [state, setState] = useState<'idle' | 'dragging' | 'analyzing' | 'done'>('idle');
   const [result, setResult] = useState<any>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -1059,6 +1051,8 @@ export default function NewDesignPage() {
               setSelectedFile={setSelectedFile} 
               preview={preview} 
               setPreview={setPreview}
+              stats={stats}
+              setStats={setStats}
             />
           </div>
         </div>
