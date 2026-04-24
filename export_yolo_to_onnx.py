@@ -129,29 +129,35 @@ def export_yolo_to_onnx(model_path=None):
     quant_info = None
     
     try:
-        quantized_backend = backend_output.replace(".onnx", "_quantized.onnx")
-        quantized_frontend = frontend_output.replace(".onnx", "_quantized.onnx")
+        backend_quantized_path = backend_output.replace(".onnx", "_quantized.onnx")
+        frontend_quantized_path = frontend_output.replace(".onnx", "_quantized.onnx")
         
-        print(f"   Quantizing to {quantized_backend}...")
-        quant_info = quantize_model(backend_output, quantized_backend)
+        # Quantize backend model
+        print(f"   Quantizing to {backend_quantized_path}...")
+        quant_info = quantize_model(backend_output, backend_quantized_path)
+        quantized_backend = backend_quantized_path  # Mark as successful
         print(f"   ✓ Quantization complete")
         print(f"     Original size: {quant_info['original_size_mb']:.1f} MB")
         print(f"     Quantized size: {quant_info['quantized_size_mb']:.1f} MB")
         print(f"     Size reduction: {quant_info['size_reduction_percent']:.1f}%")
         
-        # Copy quantized model to frontend
-        print(f"   Copying quantized model to {quantized_frontend}...")
-        shutil.copy2(quantized_backend, quantized_frontend)
-        print(f"   ✓ Quantized model copied to frontend")
+        # Copy to frontend (separate from quantization)
+        try:
+            print(f"   Copying quantized model to {frontend_quantized_path}...")
+            shutil.copy2(backend_quantized_path, frontend_quantized_path)
+            quantized_frontend = frontend_quantized_path  # Mark as successful
+            print(f"   ✓ Quantized model copied to frontend")
+        except Exception as copy_error:
+            print(f"   ⚠ Failed to copy to frontend: {copy_error}")
         
         # Validate quantized model
-        if validate_quantized_model(quantized_backend):
+        if validate_quantized_model(backend_quantized_path):
             print(f"   ✓ Quantized model validation passed")
         else:
             print(f"   ⚠ Quantized model validation failed")
             
     except Exception as e:
-        print(f"   ⚠ Quantization skipped: {e}")
+        print(f"   ⚠ Quantization failed: {e}")
         quantized_backend = None
         quantized_frontend = None
     
