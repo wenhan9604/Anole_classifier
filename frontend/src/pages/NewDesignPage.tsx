@@ -359,6 +359,31 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
         location: location || undefined
       });
       toast.success("Observation uploaded successfully!", { id: toastId });
+
+      // Optimistic update of global stats
+      if (stats) {
+        const newStats = { ...stats };
+        newStats.observations += 1;
+        
+        // Update activity (last element is today)
+        if (newStats.activity && newStats.activity.length > 0) {
+          const newActivity = [...newStats.activity];
+          newActivity[newActivity.length - 1] += 1;
+          newStats.activity = newActivity;
+        }
+        
+        // Update species distribution
+        if (newStats.species_distribution) {
+          const newDist = [...newStats.species_distribution];
+          const distIdx = newDist.findIndex((d: any) => d.name === topPred.species || topPred.species.includes(d.name));
+          if (distIdx !== -1) {
+            newDist[distIdx] = { ...newDist[distIdx], count: newDist[distIdx].count + 1 };
+          }
+          newStats.species_distribution = newDist;
+        }
+        
+        setStats(newStats);
+      }
     } catch (e) {
       console.error(e);
       toast.error("Failed to upload observation", { id: toastId });
