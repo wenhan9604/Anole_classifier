@@ -61,6 +61,39 @@ export class OnnxDetectionService {
     return this.ortNs;
   }
 
+  /**
+   * Load a model with fallback from quantized to original version.
+   * Tries to load the quantized model first, falls back to original if not available.
+   */
+  private static async loadModelWithFallback(
+    quantizedUrl: string,
+    originalUrl: string,
+    modelName: string,
+    executionProviders: string[],
+  ): Promise<OrtTypes.InferenceSession> {
+    const sessionOptions = {
+      executionProviders,
+      graphOptimizationLevel: 'basic' as const,
+      enableCpuMemArena: true,
+      enableMemPattern: true,
+    };
+
+    try {
+      console.log(`Loading quantized ${modelName} from ${quantizedUrl}...`);
+      const session = await this.ort().InferenceSession.create(quantizedUrl, sessionOptions);
+      console.log(`✓ Loaded quantized ${modelName}`);
+      return session;
+    } catch (error) {
+      console.warn(
+        `Quantized ${modelName} not available, falling back to original from ${originalUrl}`,
+        error,
+      );
+      const session = await this.ort().InferenceSession.create(originalUrl, sessionOptions);
+      console.log(`✓ Loaded original ${modelName}`);
+      return session;
+    }
+  }
+
   /** Whether WebGPU API exists (does not guarantee model support). */
   static isWebGpuApiAvailable(): boolean {
     return typeof navigator !== 'undefined' && !!(navigator as Navigator & { gpu?: unknown }).gpu;
@@ -87,21 +120,33 @@ export class OnnxDetectionService {
       console.log('WASM paths set to:', baseUrl);
     }
 
-    const sessionOptions = {
-      executionProviders,
-      graphOptimizationLevel: 'basic' as const,
-      enableCpuMemArena: true,
-      enableMemPattern: true,
-    };
-
     console.log(`Creating ONNX sessions with providers=[${executionProviders.join(', ')}] (${label})...`);
 
-    const yoloSession = await ortMod.InferenceSession.create(yoloUrl, sessionOptions);
+    // Set ortNs early so loadModelWithFallback can use it
+    this.ortNs = ortMod;
+
+    // Compute original URLs by removing _quantized suffix
+    const originalYoloUrl = yoloUrl.replace('_quantized', '');
+    const originalSwinUrl = swinUrl.replace('_quantized', '');
+
+    // Load YOLO with fallback
+    const yoloSession = await this.loadModelWithFallback(
+      yoloUrl,
+      originalYoloUrl,
+      'YOLO',
+      executionProviders,
+    );
+
     try {
-      const swinSession = await ortMod.InferenceSession.create(swinUrl, sessionOptions);
+      // Load Swin with fallback
+      const swinSession = await this.loadModelWithFallback(
+        swinUrl,
+        originalSwinUrl,
+        'Swin',
+        executionProviders,
+      );
       this.yoloSession = yoloSession;
       this.swinSession = swinSession;
-      this.ortNs = ortMod;
       this.activeExecutionProviderLabel = label;
       console.log(`✓ ONNX sessions ready (${label})`);
     } catch (err) {
@@ -144,8 +189,8 @@ export class OnnxDetectionService {
 
       console.log('Initializing ONNX Runtime... preference=', executionPreference);
 
-      const defaultYoloUrl = yoloModelUrl || '/models/yolo_best.onnx';
-      const defaultSwinUrl = swinModelUrl || '/models/swin_model.onnx';
+      const defaultYoloUrl = yoloModelUrl || '/models/yolo_best_quantized.onnx';
+      const defaultSwinUrl = swinModelUrl || '/models/swin_model_quantized.onnx';
       console.log(`Loading YOLO ONNX model from ${defaultYoloUrl}...`);
       console.log(`Loading Swin ONNX model from ${defaultSwinUrl}...`);
 
