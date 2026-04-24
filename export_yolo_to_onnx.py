@@ -6,6 +6,7 @@ from ultralytics import YOLO
 import os
 import shutil
 from pathlib import Path
+from backend.models.quantization_utils import quantize_model, validate_quantized_model
 
 def find_yolo_weights():
     """Find YOLO weights file"""
@@ -121,8 +122,41 @@ def export_yolo_to_onnx(model_path=None):
         print(f"   ✗ Failed to copy files: {e}")
         return False
     
+    # Quantize the model
+    print("\n4. Quantizing ONNX model...")
+    quantized_backend = None
+    quantized_frontend = None
+    quant_info = None
+    
+    try:
+        quantized_backend = backend_output.replace(".onnx", "_quantized.onnx")
+        quantized_frontend = frontend_output.replace(".onnx", "_quantized.onnx")
+        
+        print(f"   Quantizing to {quantized_backend}...")
+        quant_info = quantize_model(backend_output, quantized_backend)
+        print(f"   ✓ Quantization complete")
+        print(f"     Original size: {quant_info['original_size_mb']:.1f} MB")
+        print(f"     Quantized size: {quant_info['quantized_size_mb']:.1f} MB")
+        print(f"     Size reduction: {quant_info['size_reduction_percent']:.1f}%")
+        
+        # Copy quantized model to frontend
+        print(f"   Copying quantized model to {quantized_frontend}...")
+        shutil.copy2(quantized_backend, quantized_frontend)
+        print(f"   ✓ Quantized model copied to frontend")
+        
+        # Validate quantized model
+        if validate_quantized_model(quantized_backend):
+            print(f"   ✓ Quantized model validation passed")
+        else:
+            print(f"   ⚠ Quantized model validation failed")
+            
+    except Exception as e:
+        print(f"   ⚠ Quantization skipped: {e}")
+        quantized_backend = None
+        quantized_frontend = None
+    
     # Verify the exported model
-    print("\n4. Verifying exported ONNX model...")
+    print("\n5. Verifying exported ONNX model...")
     try:
         import onnx
         onnx_model = onnx.load(backend_output)
@@ -147,7 +181,7 @@ def export_yolo_to_onnx(model_path=None):
         print(f"   ⚠ ONNX validation warning: {e}")
     
     # Test with ONNX Runtime
-    print("\n5. Testing with ONNX Runtime...")
+    print("\n6. Testing with ONNX Runtime...")
     try:
         import onnxruntime as ort
         import numpy as np
@@ -185,12 +219,25 @@ def export_yolo_to_onnx(model_path=None):
     print(f"Exported ONNX: {export_path}")
     print(f"Backend copy: {backend_output}")
     print(f"Frontend copy: {frontend_output}")
+    
+    if quantized_backend and os.path.exists(quantized_backend):
+        print(f"\nQuantized models:")
+        print(f"Backend quantized: {quantized_backend}")
+        print(f"Frontend quantized: {quantized_frontend}")
+        if quant_info:
+            print(f"Quantization metrics:")
+            print(f"  Original size: {quant_info['original_size_mb']:.1f} MB")
+            print(f"  Quantized size: {quant_info['quantized_size_mb']:.1f} MB")
+            print(f"  Size reduction: {quant_info['size_reduction_percent']:.1f}%")
+    
     print(f"\nModel details:")
     print(f"  - Input size: 640x640")
     print(f"  - Format: ONNX opset 12")
     print(f"  - Simplified: Yes")
     print("\nBoth models exported:")
     print("  ✓ YOLO (detection): backend/models/yolo_best.onnx")
+    if quantized_backend and os.path.exists(quantized_backend):
+        print("  ✓ YOLO Quantized (detection): backend/models/yolo_best_quantized.onnx")
     print("  ✓ Swin (classification): backend/models/swin_model.onnx")
     print("\nNext steps:")
     print("1. Test backend:")
