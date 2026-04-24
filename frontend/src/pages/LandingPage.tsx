@@ -89,6 +89,22 @@ export default function LandingPage() {
               🔍 Classify
             </Link>
           </div>
+        </div>
+        
+        {/* Community Impact Section */}
+        <div style={{ 
+          backgroundColor: "#F1F8E9", 
+          padding: "1.5rem", 
+          borderRadius: "12px", 
+          textAlign: "center",
+          maxWidth: "400px",
+          flex: "1 1 300px",
+          border: "2px solid #81C784",
+          boxShadow: "0 4px 12px rgba(129, 199, 132, 0.2)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center"
+        }}>
           <AppMetrics />
         </div>
       </div>

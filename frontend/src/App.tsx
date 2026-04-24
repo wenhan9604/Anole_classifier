@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from 'react-hot-toast';
 import LandingPage from "./pages/LandingPage";
 import PredictionPage from "./pages/PredictionPage";
+import NewDesignPage from "./pages/NewDesignPage";
 import "./App.css";
 
 function App() {
@@ -13,6 +14,9 @@ function App() {
 
         {/* Upload / prediction page */}
         <Route path="/predict" element={<PredictionPage />} />
+
+        {/* New sophisticated design */}
+        <Route path="/newdesign" element={<NewDesignPage />} />
 
         {/* Redirect all unknown routes back to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

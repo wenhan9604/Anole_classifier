@@ -81,8 +81,8 @@ export default function AppMetrics() {
 
   return (
     <div style={{
-      marginTop: "2.5rem",
-      padding: "1rem",
+      marginTop: "0.5rem",
+      padding: "0.5rem",
       display: "flex",
       flexDirection: "column",
       gap: "1.5rem"

@@ -26,6 +26,31 @@ _processor = None
 _calibrator = None
 
 
+def _load_model_with_quantized_fallback(original_path: str, quantized_path: str, model_name: str) -> str:
+    """
+    Load quantized model if available, otherwise load original.
+    
+    Args:
+        original_path: Path to the original model
+        quantized_path: Path to the quantized model
+        model_name: Name of the model for logging
+    
+    Returns:
+        Path to the model to load (quantized if available, otherwise original)
+    
+    Raises:
+        FileNotFoundError: If neither quantized nor original model exists
+    """
+    if os.path.exists(quantized_path):
+        logger.info(f"✓ Loading quantized {model_name} from {quantized_path}")
+        return quantized_path
+    elif os.path.exists(original_path):
+        logger.warning(f"⚠ Quantized {model_name} not found, using original from {original_path}")
+        return original_path
+    else:
+        raise FileNotFoundError(f"Neither quantized nor original model found for {model_name}")
+
+
 def _get_model_paths() -> Tuple[str, str]:
     """
     Returns (detection_weights_path, classification_model_id_or_path).
@@ -96,15 +121,30 @@ def _load_models() -> None:
         ) from e
 
     det_path, clf_id = _get_model_paths()
+    
+    # Apply quantized fallback for YOLO detection model
+    det_quantized_path = os.path.splitext(det_path)[0] + "_quantized.pt"
+    det_path = _load_model_with_quantized_fallback(det_path, det_quantized_path, "YOLO detection model")
+    
     if not os.path.exists(det_path):  # pragma: no cover
         raise FileNotFoundError(
             f"Detection weights not found at {det_path}. Set DETECTION_WEIGHTS_PATH env var."
         )
 
-    # Load models
+    # Load detection model
     logger.info(f"Loading YOLO model from: {det_path}")
     logger.info(f"Model file exists: {os.path.exists(det_path)}")
     _yolo = YOLO(det_path)
+    
+    # Apply quantized fallback for Swin classification model (only if it's a local path)
+    if os.path.exists(clf_id) or os.path.isdir(clf_id):
+        # Local model path - try quantized variant
+        clf_quantized_id = clf_id + "_quantized"
+        clf_id = _load_model_with_quantized_fallback(clf_id, clf_quantized_id, "Swin classification model")
+    else:
+        # Remote model ID from HuggingFace - log but don't fail
+        logger.info(f"Using remote Swin model from HuggingFace: {clf_id}")
+    
     _swin = SwinForImageClassification.from_pretrained(clf_id)
     _processor = AutoImageProcessor.from_pretrained(clf_id)
     _swin.eval()

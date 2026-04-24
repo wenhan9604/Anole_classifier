@@ -16,6 +16,31 @@ logger = logging.getLogger(__name__)
 _pipeline = None
 
 
+def _load_model_with_quantized_fallback(original_path: str, quantized_path: str, model_name: str) -> str:
+    """
+    Load quantized model if available, otherwise load original.
+    
+    Args:
+        original_path: Path to the original model
+        quantized_path: Path to the quantized model
+        model_name: Name of the model for logging
+    
+    Returns:
+        Path to the model to load (quantized if available, otherwise original)
+    
+    Raises:
+        FileNotFoundError: If neither quantized nor original model exists
+    """
+    if os.path.exists(quantized_path):
+        logger.info(f"✓ Loading quantized {model_name} from {quantized_path}")
+        return quantized_path
+    elif os.path.exists(original_path):
+        logger.warning(f"⚠ Quantized {model_name} not found, using original from {original_path}")
+        return original_path
+    else:
+        raise FileNotFoundError(f"Neither quantized nor original model found for {model_name}")
+
+
 def _get_onnx_model_paths():
     """Get paths to ONNX models (relative to backend directory)"""
     # Check environment variables first
@@ -26,11 +51,12 @@ def _get_onnx_model_paths():
     yolo_path = os.getenv("ONNX_YOLO_PATH", os.path.join(models_dir, "yolo_best.onnx"))
     swin_path = os.getenv("ONNX_SWIN_PATH", os.path.join(models_dir, "swin_model.onnx"))
     
-    # Verify files exist
-    if not os.path.exists(yolo_path):
-        raise FileNotFoundError(f"ONNX YOLO model not found at {yolo_path}")
-    if not os.path.exists(swin_path):
-        raise FileNotFoundError(f"ONNX Swin model not found at {swin_path}")
+    # Apply quantized fallback
+    yolo_quantized_path = os.path.join(models_dir, "yolo_best_quantized.onnx")
+    swin_quantized_path = os.path.join(models_dir, "swin_model_quantized.onnx")
+    
+    yolo_path = _load_model_with_quantized_fallback(yolo_path, yolo_quantized_path, "ONNX YOLO model")
+    swin_path = _load_model_with_quantized_fallback(swin_path, swin_quantized_path, "ONNX Swin model")
     
     return yolo_path, swin_path
 
