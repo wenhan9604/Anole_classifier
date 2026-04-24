@@ -44,9 +44,9 @@ def _load_model_with_quantized_fallback(original_path: str, quantized_path: str,
 def _get_onnx_model_paths():
     """Get paths to ONNX models (relative to backend directory)"""
     # Check environment variables first
-    # Navigate from backend/app/services/ -> ../Spring_2025/models/
+    # Navigate from backend/app/services/ -> backend/models/
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    models_dir = os.path.join(base_dir, "..", "Spring_2025", "models")
+    models_dir = os.path.join(base_dir, "models")
     
     yolo_path = os.getenv("ONNX_YOLO_PATH", os.path.join(models_dir, "yolo_best.onnx"))
     swin_path = os.getenv("ONNX_SWIN_PATH", os.path.join(models_dir, "swin_model.onnx"))

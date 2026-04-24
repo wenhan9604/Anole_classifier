@@ -59,13 +59,47 @@ function CountUp({ to, duration = 1200 }: { to: number, duration?: number }) {
   return <>{n}</>;
 }
 
+function Skeleton({ width = '100%', height = 20, borderRadius = 4, style = {} }: { width?: any, height?: any, borderRadius?: number, style?: any }) {
+  return (
+    <div style={{
+      width, height, borderRadius,
+      background: 'linear-gradient(90deg, var(--paper-3) 25%, var(--paper-2) 50%, var(--paper-3) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'skeleton-shimmer 1.5s infinite linear',
+      ...style
+    }} />
+  );
+}
+
 function SpeciesRibbon({ stats }: { stats: any }) {
-  const total = stats?.observations || 100;
-  // Mock species distribution based on total
-  const speciesData = SPECIES_CONFIG.map((s, i) => ({
-    ...s,
-    count: Math.round(total * [0.35, 0.45, 0.1, 0.06, 0.04][i])
-  }));
+  if (!stats) {
+    return (
+      <div>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
+          <Skeleton width={200} height={32} />
+          <Skeleton width={60} height={14} />
+        </div>
+        <Skeleton height={44} style={{ marginBottom:18 }} />
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:20 }}>
+          {[1,2,3,4].map(i => <Skeleton key={i} height={36} />)}
+        </div>
+      </div>
+    );
+  }
+
+  const total = stats?.observations || 0;
+  const dist = stats?.species_distribution || [];
+  
+  // Merge real data with config for colors
+  const speciesData = dist.map((d: any) => {
+    const config = SPECIES_CONFIG.find(c => c.name === d.name || d.name.includes(c.name)) || { color: '#888' };
+    return {
+      ...d,
+      color: config.color
+    };
+  });
+
+  if (total === 0) return null;
 
   return (
     <div>
@@ -123,11 +157,24 @@ function SpeciesRibbon({ stats }: { stats: any }) {
   );
 }
 
-function ActivityChart({ total }: { total: number }) {
-  const data = [2,1,3,2,4,3,5,2,6,4,3,7,5,8,4,6,9,7,5,8,6,10,7,9,11,8,12,9,7,13];
-  const max = Math.max(...data);
+function ActivityChart({ stats }: { stats: any }) {
+  if (!stats) {
+    return (
+      <div style={{ border:'1px solid var(--rule)', background:'var(--paper)', padding:18, borderRadius:4 }}>
+        <Skeleton width={100} height={12} style={{ marginBottom:12 }} />
+        <Skeleton width={140} height={40} style={{ marginBottom:16 }} />
+        <Skeleton height={48} />
+      </div>
+    );
+  }
+
+  const data = stats?.activity || [];
+  const total = stats?.observations || 0;
+  if (data.length === 0) return null;
+  
+  const max = Math.max(...data, 1);
   const W = 100, H = 32, step = W / (data.length - 1);
-  const points = data.map((v,i) => [i*step, H - (v/max) * (H-2) - 1]);
+  const points = data.map((v: number, i: number) => [i*step, H - (v/max) * (H-2) - 1]);
   const pathD = 'M ' + points.map(([x,y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' L ');
   const areaD = pathD + ` L ${W},${H} L 0,${H} Z`;
 
@@ -154,6 +201,41 @@ function ActivityChart({ total }: { total: number }) {
   );
 }
 
+function TopObservers({ observers, loading }: { observers: any[], loading?: boolean }) {
+  if (loading) {
+    return (
+      <div style={{ marginTop: 20, border:'1px solid var(--rule)', background:'var(--paper)', padding:18, borderRadius:4 }}>
+        <Skeleton width={100} height={12} style={{ marginBottom:16 }} />
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <Skeleton width={24} height={24} borderRadius={12} />
+              <Skeleton width="60%" height={14} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (!observers || observers.length === 0) return null;
+  return (
+    <div style={{ marginTop: 20, border:'1px solid var(--rule)', background:'var(--paper)', padding:18, borderRadius:4 }}>
+      <div className="mono" style={{ fontSize:10, letterSpacing:'0.15em', color:'var(--ink-3)', textTransform:'uppercase', marginBottom:12 }}>Top Contributors</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {observers.map((o, i) => (
+          <div key={o.login} style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:24, height:24, borderRadius:'50%', background:'var(--paper-3)', overflow:'hidden', border:'1px solid var(--rule)' }}>
+              {o.icon_url ? <img src={o.icon_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : null}
+            </div>
+            <div style={{ flex:1, fontSize:12, fontWeight:500 }}>{o.login}</div>
+            <div className="mono" style={{ fontSize:11, color:'var(--ink-3)' }}>{o.count}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, setPreview }: { inatStatus: iNaturalistAuthStatus | null, selectedFile: File | null, setSelectedFile: (f: File | null) => void, preview: string | null, setPreview: (s: string | null) => void }) {
   const [state, setState] = useState<'idle' | 'dragging' | 'analyzing' | 'done'>('idle');
   const [result, setResult] = useState<any>(null);
@@ -161,7 +243,9 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isDrawModeActive, setIsDrawModeActive] = useState(false);
   const [drawingBox, setDrawingBox] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
+  const [selectedBoxIndex, setSelectedBoxIndex] = useState<number | null>(null);
   const [isRestored, setIsRestored] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -201,6 +285,28 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
       PersistenceService.saveResult(result);
     }
   }, [selectedFile, result, isRestored]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBoxIndex !== null && result) {
+        // Only delete if not currently typing in an input (though we don't have many inputs here)
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+        
+        const newPredictions = [...result.predictions];
+        newPredictions.splice(selectedBoxIndex, 1);
+        setResult({
+          ...result,
+          totalLizards: result.totalLizards - 1,
+          predictions: newPredictions
+        });
+        setSelectedBoxIndex(null);
+        toast.success("Region removed");
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBoxIndex, result]);
 
   useEffect(() => {
     return () => {
@@ -336,6 +442,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
     
     // Prevent default browser behavior (dragging images, selecting text)
     e.preventDefault();
+    setSelectedBoxIndex(null);
     
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -379,6 +486,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
     }
 
     setIsDrawing(false);
+    setIsDrawModeActive(false);
     setDrawingBox(null);
 
     const finalBox: [number, number, number, number] = [x1, y1, x2, y2];
@@ -451,10 +559,19 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
           display:'flex', alignItems:'center', justifyContent:'center',
           overflow:'visible',
           transition:'all 200ms',
-          cursor: preview ? 'crosshair' : 'default',
+          cursor: isDrawModeActive ? 'crosshair' : (preview ? 'crosshair' : 'default'),
           userSelect: 'none'
         }}
       >
+        {isDrawModeActive && (
+          <div style={{
+            position:'absolute', top:-30, left:0, right:0, textAlign:'center',
+            fontSize:11, color:'var(--moss)', fontWeight:600, letterSpacing:'0.05em',
+            textTransform:'uppercase'
+          }}>
+            ✏️ Click & Drag to define region
+          </div>
+        )}
         {preview && (
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <img 
@@ -476,14 +593,14 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
             />
             
             {/* Bounding Boxes Layer */}
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}>
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: isDrawModeActive ? 'none' : 'auto' }}>
               {state === 'done' && result && imageDimensions && imageRef.current && (
                 result.predictions.map((p: any, i: number) => {
                   if (!p.boundingBox) return null;
                   const [x1, y1, x2, y2] = p.boundingBox;
                   return (
                     <ResizableBoundingBox
-                      key={`${i}-${p.boundingBox.join(',')}`}
+                      key={`box-${i}`}
                       x={x1}
                       y={y1}
                       width={x2 - x1}
@@ -495,12 +612,37 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
                       imageDisplayWidth={imageRef.current!.clientWidth}
                       imageDisplayHeight={imageRef.current!.clientHeight}
                       onResize={(newBox) => handleBoxResize(i, newBox)}
-                      disabled={reclassifyingIndex !== null || isDrawing}
+                      disabled={reclassifyingIndex !== null || isDrawModeActive}
+                      selected={selectedBoxIndex === i}
+                      onClick={() => setSelectedBoxIndex(i)}
                     />
                   );
                 })
               )}
             </div>
+
+            {(state === 'analyzing' || reclassifyingIndex !== null) && (
+              <>
+                <div style={{
+                  position:'absolute', inset:0, pointerEvents:'none',
+                  background: 'linear-gradient(180deg, transparent 0%, rgba(216,87,42,0.35) 50%, transparent 100%)',
+                  height:'30%', animation:'scan 1.6s ease-in-out infinite',
+                  borderRadius: 4
+                }}/>
+                <div style={{
+                  position:'absolute', left:12, top:12,
+                  background:'var(--ink)', color:'var(--paper)',
+                  padding:'6px 10px', borderRadius:3,
+                  display:'flex', alignItems:'center', gap:8,
+                  zIndex: 30
+                }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--dewlap)', animation:'pulse 1s ease-in-out infinite' }}/>
+                  <span className="mono" style={{ fontSize:10, letterSpacing:'0.12em' }}>
+                    {reclassifyingIndex !== null ? 'RE-SCANNING REGION...' : 'CLASSIFYING...'}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         )}
         
@@ -529,24 +671,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
           }} />
         )}
 
-        {state === 'analyzing' && (
-          <>
-            <div style={{
-              position:'absolute', inset:0, pointerEvents:'none',
-              background: 'linear-gradient(180deg, transparent 0%, rgba(216,87,42,0.35) 50%, transparent 100%)',
-              height:'30%', animation:'scan 1.6s ease-in-out infinite'
-            }}/>
-            <div style={{
-              position:'absolute', left:12, top:12,
-              background:'var(--ink)', color:'var(--paper)',
-              padding:'6px 10px', borderRadius:3,
-              display:'flex', alignItems:'center', gap:8
-            }}>
-              <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--dewlap)', animation:'pulse 1s ease-in-out infinite' }}/>
-              <span className="mono" style={{ fontSize:10, letterSpacing:'0.12em' }}>CLASSIFYING...</span>
-            </div>
-          </>
-        )}
+
       </div>
 
       {state === 'done' ? (
@@ -568,6 +693,9 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
           onUpload={handleUploadToInat}
           isUploading={isUploading}
           inatConnected={inatStatus?.connected || false}
+          onConnect={() => iNaturalistAPI.connectAccount()}
+          isDrawModeActive={isDrawModeActive}
+          setIsDrawModeActive={setIsDrawModeActive}
         />
       ) : (
         <div style={{ display:'flex', gap:10, marginTop:12 }}>
@@ -583,6 +711,25 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
             }}>
             <Icon.Upload s={14}/> Upload photo
           </button>
+          
+          {preview && (
+            <button
+              onClick={() => setIsDrawModeActive(!isDrawModeActive)}
+              disabled={state==='analyzing'}
+              style={{
+                flex:1,
+                border: isDrawModeActive ? '1px solid var(--moss)' : '1px solid var(--ink)',
+                background: isDrawModeActive ? 'var(--moss)' : 'transparent',
+                color: isDrawModeActive ? '#fff' : 'var(--ink)',
+                padding:'11px 14px', borderRadius:3, fontSize:13, fontWeight:500,
+                display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                transition: 'all 200ms',
+                opacity: state==='analyzing' ? 0.5 : 1
+              }}>
+              <Icon.Edit s={14}/> {isDrawModeActive ? 'Cancel drawing' : 'Draw region'}
+            </button>
+          )}
+
           <input ref={fileRef} type="file" accept="image/*" onChange={e => handleFile(e.target.files?.[0])} style={{ display:'none' }}/>
         </div>
       )}
@@ -594,14 +741,27 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
   );
 }
 
-function ResultCard({ result, onReset, onCorrect, onUpload, isUploading, inatConnected }: { result: any, onReset: () => void, onCorrect: (s: string) => void, onUpload: () => void, isUploading: boolean, inatConnected: boolean }) {
+function ResultCard({ result, onReset, onCorrect, onUpload, isUploading, inatConnected, onConnect, isDrawModeActive, setIsDrawModeActive }: { result: any, onReset: () => void, onCorrect: (s: string) => void, onUpload: () => void, isUploading: boolean, inatConnected: boolean, onConnect: () => void, isDrawModeActive: boolean, setIsDrawModeActive: (v: boolean) => void }) {
   const [isCorrecting, setIsCorrecting] = useState(false);
   
   if (!result || result.totalLizards === 0) {
     return (
       <div style={{ marginTop:14, padding: 20, border:'1px solid var(--ink)', background:'var(--paper)', borderRadius:4, textAlign: 'center' }}>
         <div className="serif" style={{ fontSize:18, marginBottom: 10 }}>No lizards detected</div>
-        <button onClick={onReset} style={{ border:'1px solid var(--ink)', background:'var(--ink)', color:'var(--paper)', padding:'8px 16px', borderRadius:3 }}>Try another photo</button>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <button onClick={onReset} style={{ border:'1px solid var(--ink)', background:'var(--ink)', color:'var(--paper)', padding:'8px 16px', borderRadius:3 }}>Try another photo</button>
+          <button 
+            onClick={() => setIsDrawModeActive(!isDrawModeActive)}
+            style={{ 
+              border: isDrawModeActive ? '1px solid var(--moss)' : '1px solid var(--rule)', 
+              background: isDrawModeActive ? 'var(--moss)' : 'transparent', 
+              color: isDrawModeActive ? '#fff' : 'var(--ink)',
+              padding:'8px 16px', borderRadius:3 
+            }}
+          >
+            {isDrawModeActive ? 'Cancel drawing' : 'Draw box manually'}
+          </button>
+        </div>
       </div>
     );
   }
@@ -638,32 +798,42 @@ function ResultCard({ result, onReset, onCorrect, onUpload, isUploading, inatCon
         {!isCorrecting ? (
           <div style={{ display:'flex', gap:8, marginTop:16, position: 'relative' }}>
             <button 
-              onClick={onUpload}
-              disabled={isUploading || !inatConnected}
+              onClick={inatConnected ? onUpload : onConnect}
+              disabled={isUploading}
               style={{
-                flex:1, border:'1px solid var(--ink)', background: inatConnected ? 'var(--ink)' : 'var(--rule)', color:'var(--paper)',
+                flex:1, border:'1px solid var(--ink)', background: 'var(--ink)', color:'var(--paper)',
                 padding:'10px 14px', borderRadius:3, fontSize:12, fontWeight:500, letterSpacing:'0.03em',
                 display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-                cursor: inatConnected ? 'pointer' : 'not-allowed'
+                cursor: 'pointer'
               }}>
-              {isUploading ? 'Uploading...' : 'Submit to iNaturalist'} <Icon.Arrow s={12}/>
+              {inatConnected ? (isUploading ? 'Uploading...' : 'Submit to iNaturalist') : 'Connect iNaturalist'} <Icon.Arrow s={12}/>
             </button>
             {!inatConnected && (
               <div style={{ position: 'absolute', bottom: -18, left: 0, right: 0, textAlign: 'center', fontSize: 9, color: 'var(--ink-3)' }}>
                 Connect iNaturalist to upload
               </div>
             )}
+            <button 
+              onClick={() => setIsDrawModeActive(!isDrawModeActive)}
+              style={{
+                border: isDrawModeActive ? '1px solid var(--moss)' : '1px solid var(--rule)',
+                background: isDrawModeActive ? 'var(--moss)' : 'transparent',
+                color: isDrawModeActive ? '#fff' : 'var(--ink-2)',
+                padding:'10px 14px', borderRadius:3, fontSize:12, display: 'flex', alignItems: 'center', gap: 6
+              }}>
+              <Icon.Edit s={12}/> {isDrawModeActive ? 'Cancel' : 'Draw'}
+            </button>
             <button onClick={() => setIsCorrecting(true)} style={{
               border:'1px solid var(--rule)', background:'transparent', color:'var(--ink-2)',
               padding:'10px 14px', borderRadius:3, fontSize:12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Icon.Edit s={12}/> Correct
+              <Icon.Check s={12}/> Correct
             </button>
             <button onClick={onReset} style={{
               border:'1px solid var(--rule)', background:'transparent', color:'var(--ink-2)',
               padding:'10px 14px', borderRadius:3, fontSize:12
             }}>
-              Reset
+              New
             </button>
           </div>
         ) : (
@@ -745,7 +915,7 @@ export default function NewDesignPage() {
     // Fetch stats
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/metrics/stats');
+        const res = await fetch('/api/metrics/dashboard');
         if (res.ok) {
           const data = await res.json();
           setStats(data);
@@ -787,6 +957,10 @@ export default function NewDesignPage() {
         .mono { font-family: 'JetBrains Mono', monospace; }
         .ll-main { max-width: 1240px; margin: 0 auto; padding: 40px 48px 80px; }
         .ll-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: start; margin-bottom: 44px; }
+        @keyframes skeleton-shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
         @media (max-width: 860px) {
           .ll-hero { grid-template-columns: 1fr; gap: 36px; }
           .ll-main { padding: 20px 20px 60px; }
@@ -859,18 +1033,8 @@ export default function NewDesignPage() {
               <SpeciesRibbon stats={stats} />
             </section>
             <section>
-              <ActivityChart total={stats?.observations || 0} />
-              <div style={{ marginTop: 20, border:'1px solid var(--rule)', background:'var(--paper)', padding:18, borderRadius:4 }}>
-                 <div className="mono" style={{ fontSize:10, textTransform:'uppercase', color:'var(--ink-3)', marginBottom: 8 }}>Top observers</div>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[{n:'m.chen', c:34}, {n:'r.patel', c:28}, {n:'j.alvarez', c:22}].map((u, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                        <span className="mono">{u.n}</span>
-                        <span className="mono" style={{ fontWeight: 600 }}>{u.c}</span>
-                      </div>
-                    ))}
-                 </div>
-              </div>
+              <ActivityChart stats={stats} />
+              <TopObservers observers={stats?.top_observers || []} loading={!stats} />
             </section>
           </div>
         </div>

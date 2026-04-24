@@ -276,8 +276,8 @@ if __name__ == "__main__":
     print("="*70)
     
     # Define model paths
-    yolo_original = "backend/models/yolo_model.onnx"
-    yolo_quantized = "backend/models/yolo_model_quantized.onnx"
+    yolo_original = "backend/models/yolo_best.onnx"
+    yolo_quantized = "backend/models/yolo_best_quantized.onnx"
     
     swin_original = "backend/models/swin_model.onnx"
     swin_quantized = "backend/models/swin_model_quantized.onnx"

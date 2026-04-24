@@ -13,6 +13,8 @@ interface ResizableBoundingBoxProps {
   imageDisplayWidth: number;
   imageDisplayHeight: number;
   disabled?: boolean;
+  selected?: boolean;
+  onClick?: () => void;
 }
 
 export function ResizableBoundingBox({
@@ -28,6 +30,8 @@ export function ResizableBoundingBox({
   imageDisplayWidth,
   imageDisplayHeight,
   disabled = false,
+  selected = false,
+  onClick,
 }: ResizableBoundingBoxProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState<string | null>(null);
@@ -71,6 +75,7 @@ export function ResizableBoundingBox({
       setIsDragging(true);
       setDragStart({ x: startX, y: startY });
       setBoxStart({ x, y, width, height });
+      if (onClick) onClick();
     } else if (type === 'resize' && corner) {
       setIsResizing(corner);
       setDragStart({ x: startX, y: startY });
@@ -169,7 +174,7 @@ export function ResizableBoundingBox({
   const [displayX, displayY] = toDisplayCoords(x, y);
   const [displayWidth, displayHeight] = toDisplayCoords(width, height);
 
-  const handleSize = 8;
+  const handleSize = 14;
   const borderWidth = 3;
 
   return (
@@ -181,12 +186,13 @@ export function ResizableBoundingBox({
         top: `${displayY}px`,
         width: `${displayWidth}px`,
         height: `${displayHeight}px`,
-        border: `${borderWidth}px solid ${color}`,
+        border: `${borderWidth}px ${selected ? 'dashed' : 'solid'} ${color}`,
         borderRadius: '4px',
         boxSizing: 'border-box',
         cursor: isDragging ? 'grabbing' : 'grab',
         pointerEvents: disabled ? 'none' : 'auto',
-        zIndex: 5,
+        zIndex: selected ? 10 : 5,
+        boxShadow: selected ? `0 0 0 2px white, 0 0 8px ${color}` : 'none',
       }}
       onMouseDown={(e) => handleMouseDown(e, 'drag')}
     >
@@ -224,6 +230,7 @@ export function ResizableBoundingBox({
               backgroundColor: color,
               border: '2px solid white',
               borderRadius: '50%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
               cursor: 'nwse-resize',
               zIndex: 15,
             }}
@@ -240,6 +247,7 @@ export function ResizableBoundingBox({
               backgroundColor: color,
               border: '2px solid white',
               borderRadius: '50%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
               cursor: 'nesw-resize',
               zIndex: 15,
             }}
@@ -256,6 +264,7 @@ export function ResizableBoundingBox({
               backgroundColor: color,
               border: '2px solid white',
               borderRadius: '50%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
               cursor: 'nesw-resize',
               zIndex: 15,
             }}
@@ -272,6 +281,7 @@ export function ResizableBoundingBox({
               backgroundColor: color,
               border: '2px solid white',
               borderRadius: '50%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
               cursor: 'nwse-resize',
               zIndex: 15,
             }}
