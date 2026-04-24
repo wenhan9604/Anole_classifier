@@ -14,7 +14,6 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional
-import numpy as np
 
 try:
     import onnx
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 def quantize_model(
     model_path: str,
     output_path: str,
-    quantization_type: str = "qint8",
+    quantization_type: QuantType = QuantType.QUInt8,
 ) -> Dict[str, float]:
     """
     Quantize an ONNX model using dynamic int8 quantization.
@@ -45,8 +44,8 @@ def quantize_model(
     Args:
         model_path: Path to the input ONNX model file
         output_path: Path where the quantized model will be saved
-        quantization_type: Type of quantization - "qint8" (signed) or "quint8" (unsigned).
-                          Default is "qint8".
+        quantization_type: Type of quantization - QuantType.QInt8 (signed) or QuantType.QUInt8 (unsigned).
+                          Default is QuantType.QUInt8.
     
     Returns:
         Dictionary containing:
@@ -58,14 +57,13 @@ def quantize_model(
     
     Raises:
         FileNotFoundError: If the input model file doesn't exist
-        ValueError: If an unsupported quantization type is specified
         RuntimeError: If quantization fails
     
     Examples:
         >>> result = quantize_model(
         ...     "backend/models/swin_model.onnx",
         ...     "backend/models/swin_model_quantized.onnx",
-        ...     quantization_type="qint8"
+        ...     quantization_type=QuantType.QInt8
         ... )
         >>> print(f"Reduced size from {result['original_size_mb']:.1f}MB "
         ...       f"to {result['quantized_size_mb']:.1f}MB")
@@ -74,17 +72,9 @@ def quantize_model(
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
     
-    # Validate quantization type
-    quantization_type = quantization_type.lower()
-    if quantization_type == "qint8":
-        q_type = QuantType.QInt8
-    elif quantization_type == "quint8":
-        q_type = QuantType.QUInt8
-    else:
-        raise ValueError(
-            f"Unsupported quantization type: {quantization_type}. "
-            "Must be 'qint8' or 'quint8'."
-        )
+    # Use the provided quantization type directly
+    q_type = quantization_type
+    quantization_type_str = "qint8" if q_type == QuantType.QInt8 else "quint8"
     
     # Get original model size
     original_size = os.path.getsize(model_path)
@@ -97,7 +87,7 @@ def quantize_model(
     
     try:
         logger.info(f"Quantizing model: {model_path}")
-        logger.info(f"Quantization type: {quantization_type}")
+        logger.info(f"Quantization type: {quantization_type_str}")
         
         # Perform quantization using ONNX Runtime
         # Note: quantize_dynamic doesn't take optimize_model parameter
@@ -132,7 +122,7 @@ def quantize_model(
             "original_size_mb": round(original_size_mb, 2),
             "quantized_size_mb": round(quantized_size_mb, 2),
             "size_reduction_percent": round(size_reduction_percent, 2),
-            "quantization_type": quantization_type,
+            "quantization_type": quantization_type_str,
             "output_path": output_path,
         }
     
@@ -140,7 +130,7 @@ def quantize_model(
         raise RuntimeError(f"Quantization failed: {str(e)}") from e
 
 
-def validate_quantized_model(model_path: str) -> Dict[str, bool]:
+def validate_quantized_model(model_path: str) -> bool:
     """
     Validate that a quantized ONNX model is valid and loadable.
     
@@ -152,23 +142,17 @@ def validate_quantized_model(model_path: str) -> Dict[str, bool]:
         model_path: Path to the quantized ONNX model file to validate
     
     Returns:
-        Dictionary containing:
-            - "file_exists": Whether the model file exists
-            - "onnx_format_valid": Whether the ONNX format is valid
-            - "runtime_loadable": Whether ONNX Runtime can load the model
-            - "all_valid": Whether all validation checks passed
-            - "model_path": Path to the validated model
-            - "validation_errors": List of any validation errors encountered
+        True if the model is valid (ONNX format valid AND ONNX Runtime can load it), False otherwise.
     
     Raises:
         FileNotFoundError: If the model file doesn't exist
     
     Examples:
-        >>> result = validate_quantized_model("backend/models/swin_model_quantized.onnx")
-        >>> if result["all_valid"]:
+        >>> is_valid = validate_quantized_model("backend/models/swin_model_quantized.onnx")
+        >>> if is_valid:
         ...     print("Model is valid and ready for use")
         >>> else:
-        ...     print("Validation errors:", result["validation_errors"])
+        ...     print("Model validation failed")
     """
     validation_errors = []
     
@@ -210,14 +194,7 @@ def validate_quantized_model(model_path: str) -> Dict[str, bool]:
     
     all_valid = file_exists and onnx_format_valid and runtime_loadable
     
-    return {
-        "file_exists": file_exists,
-        "onnx_format_valid": onnx_format_valid,
-        "runtime_loadable": runtime_loadable,
-        "all_valid": all_valid,
-        "model_path": model_path,
-        "validation_errors": validation_errors,
-    }
+    return all_valid
 
 
 def get_model_info(model_path: str) -> Dict:
