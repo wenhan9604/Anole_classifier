@@ -796,7 +796,7 @@ function ResultCard({ result, onReset, onCorrect, onUpload, isUploading, inatCon
         </div>
 
         {!isCorrecting ? (
-          <div style={{ display:'flex', gap:8, marginTop:16, position: 'relative' }}>
+          <div className="ll-result-actions" style={{ display:'flex', gap:8, marginTop:16, position: 'relative' }}>
             <button 
               onClick={inatConnected ? onUpload : onConnect}
               disabled={isUploading}
@@ -957,13 +957,25 @@ export default function NewDesignPage() {
         .mono { font-family: 'JetBrains Mono', monospace; }
         .ll-main { max-width: 1240px; margin: 0 auto; padding: 40px 48px 80px; }
         .ll-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: start; margin-bottom: 44px; }
+        .ll-community-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; }
+        
         @keyframes skeleton-shimmer {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
-        @media (max-width: 860px) {
+        
+        @media (max-width: 900px) {
           .ll-hero { grid-template-columns: 1fr; gap: 36px; }
-          .ll-main { padding: 20px 20px 60px; }
+          .ll-community-grid { grid-template-columns: 1fr; gap: 30px; }
+          .ll-main { padding: 24px 20px 60px; }
+          .ll-hero h1 { font-size: 38px !important; }
+        }
+        
+        @media (max-width: 600px) {
+          header { padding: 16px 20px !important; flex-direction: column; gap: 12px; align-items: flex-start !important; }
+          .ll-hero h1 { font-size: 32px !important; }
+          .ll-result-actions { flex-wrap: wrap; }
+          .ll-result-actions button { flex: 1 1 45% !important; min-width: 140px; }
         }
       `}</style>
       
@@ -1028,7 +1040,7 @@ export default function NewDesignPage() {
 
         <div style={{ marginTop: 60 }}>
           <Rule label="02 · Community Impact" />
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 40 }}>
+          <div className="ll-community-grid">
             <section>
               <SpeciesRibbon stats={stats} />
             </section>
