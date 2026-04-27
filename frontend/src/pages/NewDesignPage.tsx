@@ -233,6 +233,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
   const [result, setResult] = useState<any>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
+  const [scanningBoxIndex, setScanningBoxIndex] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isDrawModeActive, setIsDrawModeActive] = useState(false);
@@ -386,6 +387,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
 
   const handleBoxResize = (index: number, newBox: { x: number; y: number; width: number; height: number }) => {
     if (!result || !selectedFile) return;
+    setScanningBoxIndex(index);
 
     const [x1, y1, x2, y2] = [
       newBox.x,
@@ -428,6 +430,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
         console.error("Reclassification failed:", error);
       } finally {
         setReclassifyingIndex(null);
+        setScanningBoxIndex(null);
       }
     }, 600); // 600ms debounce
   };
@@ -550,6 +553,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
     setResult(null); 
     setState('idle'); 
     setImageDimensions(null); 
+    setScanningBoxIndex(null);
     PersistenceService.clearAll();
   };
 
@@ -572,7 +576,8 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
           border: state==='dragging' ? '1.5px solid var(--moss)' : '1px dashed var(--ink-3)',
           background: state==='dragging' ? 'rgba(61,100,42,0.06)' : 'var(--paper-2)',
           borderRadius: 4,
-          minHeight: preview ? 'auto' : 300,
+          minHeight: preview ? 'auto' : 'min(58vh, 560px)',
+          width: '100%',
           display:'flex', alignItems:'center', justifyContent:'center',
           overflow:'visible',
           transition:'all 200ms',
@@ -590,7 +595,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
           </div>
         )}
         {preview && (
-          <div style={{ position: 'relative', display: 'inline-block' }}>
+          <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', borderRadius: 4 }}>
             <img 
               ref={imageRef}
               src={preview} 
@@ -601,7 +606,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
                 display: 'block',
                 maxWidth: '100%',
                 height: 'auto',
-                maxHeight: '500px',
+                maxHeight: 'min(70vh, 680px)',
                 borderRadius: 4,
                 filter: (state === 'analyzing' || reclassifyingIndex !== null) ? 'saturate(0.7) brightness(0.9)' : 'none',
                 transition: 'filter 400ms',
@@ -638,14 +643,41 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
               )}
             </div>
 
-            {(state === 'analyzing' || reclassifyingIndex !== null) && (
+            {/* Drawing Box Preview */}
+            {isDrawing && drawingBox && (
+              <div style={{
+                position: 'absolute',
+                left: Math.min(naturalToDisplay(drawingBox.startX, 0)[0], naturalToDisplay(drawingBox.endX, 0)[0]),
+                top: Math.min(naturalToDisplay(0, drawingBox.startY)[1], naturalToDisplay(0, drawingBox.endY)[1]),
+                width: Math.abs(naturalToDisplay(drawingBox.startX, 0)[0] - naturalToDisplay(drawingBox.endX, 0)[0]),
+                height: Math.abs(naturalToDisplay(0, drawingBox.startY)[1] - naturalToDisplay(0, drawingBox.endY)[1]),
+                border: '2px dashed var(--dewlap)',
+                backgroundColor: 'rgba(216, 87, 42, 0.1)',
+                pointerEvents: 'none',
+                zIndex: 20
+              }} />
+            )}
+
+            {(state === 'analyzing' || reclassifyingIndex !== null || scanningBoxIndex !== null) && (
               <>
                 <div style={{
                   position:'absolute', inset:0, pointerEvents:'none',
-                  background: 'linear-gradient(180deg, transparent 0%, rgba(216,87,42,0.35) 50%, transparent 100%)',
-                  height:'30%', animation:'scan 1.6s ease-in-out infinite',
-                  borderRadius: 4
-                }}/>
+                  borderRadius: 4,
+                  zIndex: 25,
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: -18,
+                    height: 18,
+                    background: 'linear-gradient(180deg, transparent 0%, rgba(216,87,42,0.35) 35%, rgba(216,87,42,0.95) 50%, rgba(216,87,42,0.35) 65%, transparent 100%)',
+                    boxShadow: '0 0 18px rgba(216,87,42,0.85), 0 0 42px rgba(216,87,42,0.45)',
+                    animation: 'scan-line 1.15s linear infinite',
+                    willChange: 'top'
+                  }}/>
+                </div>
                 <div style={{
                   position:'absolute', left:12, top:12,
                   background:'var(--ink)', color:'var(--paper)',
@@ -655,7 +687,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
                 }}>
                   <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--dewlap)', animation:'pulse 1s ease-in-out infinite' }}/>
                   <span className="mono" style={{ fontSize:10, letterSpacing:'0.12em' }}>
-                    {reclassifyingIndex !== null ? 'RE-SCANNING REGION...' : 'CLASSIFYING...'}
+                    {reclassifyingIndex !== null || scanningBoxIndex !== null ? 'RE-SCANNING REGION...' : 'CLASSIFYING...'}
                   </span>
                 </div>
               </>
@@ -669,23 +701,8 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
               <Icon.Upload s={22}/>
             </div>
             <div className="serif" style={{ fontSize:17, color:'var(--ink)', marginBottom:4 }}>Drop a lizard photo here</div>
-            <div style={{ fontSize:12 }}>or click to upload</div>
+            <div style={{ fontSize:12 }}>or pick one below</div>
           </div>
-        )}
-
-        {/* Drawing Box Preview */}
-        {isDrawing && drawingBox && (
-          <div style={{
-            position: 'absolute',
-            left: Math.min(naturalToDisplay(drawingBox.startX, 0)[0], naturalToDisplay(drawingBox.endX, 0)[0]),
-            top: Math.min(naturalToDisplay(0, drawingBox.startY)[1], naturalToDisplay(0, drawingBox.endY)[1]),
-            width: Math.abs(naturalToDisplay(drawingBox.startX, 0)[0] - naturalToDisplay(drawingBox.endX, 0)[0]),
-            height: Math.abs(naturalToDisplay(0, drawingBox.startY)[1] - naturalToDisplay(0, drawingBox.endY)[1]),
-            border: '2px dashed var(--dewlap)',
-            backgroundColor: 'rgba(216, 87, 42, 0.1)',
-            pointerEvents: 'none',
-            zIndex: 20
-          }} />
         )}
 
 
@@ -751,7 +768,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
         </div>
       )}
       <style>{`
-        @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(400%); } }
+        @keyframes scan-line { 0% { top: -18px; } 100% { top: calc(100% + 18px); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
       `}</style>
     </div>
@@ -863,7 +880,10 @@ function ResultCard({ result, onReset, onCorrect, onUpload, isUploading, inatCon
                   onClick={() => { onCorrect(s.name); setIsCorrecting(false); }}
                   style={{ 
                     padding: '6px 10px', fontSize: 11, textAlign: 'left', borderRadius: 3,
-                    border: '1px solid var(--rule)', background: topPred.species === s.name ? 'var(--paper-2)' : 'white'
+                    border: topPred.species === s.name ? '1px solid var(--ink)' : '1px solid var(--rule)',
+                    background: topPred.species === s.name ? 'var(--paper-2)' : 'var(--paper)',
+                    color: 'var(--ink)',
+                    fontWeight: topPred.species === s.name ? 600 : 500
                   }}
                 >
                   {s.name}
@@ -973,7 +993,11 @@ export default function NewDesignPage() {
         .serif { font-family: 'Fraunces', serif; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         .ll-main { max-width: 1240px; margin: 0 auto; padding: 40px 48px 80px; }
-        .ll-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: start; margin-bottom: 44px; }
+        .ll-hero { display: flex; flex-direction: column; align-items: center; gap: 30px; margin-bottom: 44px; }
+        .ll-intro { text-align: center; max-width: 760px; }
+        .ll-intro p { margin-left: auto; margin-right: auto; }
+        .ll-intro-stats { justify-content: center; }
+        .ll-classifier { width: 100%; max-width: 980px; }
         .ll-community-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; }
         
         @keyframes skeleton-shimmer {
@@ -982,7 +1006,7 @@ export default function NewDesignPage() {
         }
         
         @media (max-width: 900px) {
-          .ll-hero { grid-template-columns: 1fr; gap: 36px; }
+          .ll-hero { gap: 28px; }
           .ll-community-grid { grid-template-columns: 1fr; gap: 30px; }
           .ll-main { padding: 24px 20px 60px; }
           .ll-hero h1 { font-size: 38px !important; }
@@ -1021,29 +1045,30 @@ export default function NewDesignPage() {
 
       <main className="ll-main">
         <div className="ll-hero">
-          <div>
-            <div className="mono" style={{ fontSize: 10, letterSpacing: '0.2em', color: 'var(--dewlap)', textTransform: 'uppercase', marginBottom: 16 }}>
-              ● Citizen science
-            </div>
+          <div className="ll-intro">
             <h1 className="serif" style={{ fontSize: 54, fontWeight: 500, letterSpacing: '-0.02em', margin: '0 0 18px', lineHeight: 1.1 }}>
-              Identify Florida<br/>Anoles instantly.
+              What lizard did you just see?
             </h1>
             <p style={{ fontSize: 16, color: 'var(--ink-2)', maxWidth: 460, lineHeight: 1.6 }}>
-              Upload a photo of an anole. Our AI will classify the species and help you contribute to research efforts across the sunshine state.
+              Drop a photo below. We'll tell you the species in seconds.
             </p>
-            <div style={{ display: 'flex', gap: 24, marginTop: 32 }}>
+            <div className="ll-intro-stats" style={{ display: 'flex', gap: 24, marginTop: 32 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>5 species</div>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>CURRENTLY SUPPORTED</div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>ACROSS FLORIDA</div>
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Real-time</div>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>ON-DEVICE IDENTIFICATION</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Instant ID</div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>FROM A PHOTO</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Real science</div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>VIA INATURALIST</div>
               </div>
             </div>
           </div>
 
-          <div>
+          <div className="ll-classifier">
             <Rule label="01 · Classify specimen"/>
             <ClassifyPanel 
               inatStatus={inatStatus} 
