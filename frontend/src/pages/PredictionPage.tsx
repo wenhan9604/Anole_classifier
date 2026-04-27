@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   AnoleDetectionService,
   type DetectionMode,
-  type FrontendInferenceTimings,
 } from "../services/AnoleDetectionService";
 import { ResizableBoundingBox } from "../components/ResizableBoundingBox";
 import { toast } from 'react-hot-toast';
@@ -79,8 +78,6 @@ interface DetectionResult {
   totalLizards: number;
   predictions: PredictionResult[];
   imageUrl?: string;
-  /** Client ONNX perf (browser only). */
-  clientTimings?: FrontendInferenceTimings;
 }
 
 export default function PredictionPage() {
@@ -322,13 +319,15 @@ export default function PredictionPage() {
           };
         }),
         imageUrl: previewUrl || undefined,
-        clientTimings: data.timings,
       };
       
       // Debug: log bounding boxes
       console.log("Detection result:", result);
       console.log("Boxes:", result.predictions.map(p => p.box));
       console.log("Processing time:", data.processingTime, "seconds");
+      if (data.timings) {
+        console.log("Inference timings (client ONNX):", data.timings);
+      }
       
       setDetectionResult(result);
     } catch (error) {
@@ -724,17 +723,6 @@ export default function PredictionPage() {
             ))}
           </select>
         </div>
-
-        {(detectionMode === "auto" || AnoleDetectionService.isOnnxFrontendMode(detectionMode)) &&
-          detectionResult?.clientTimings?.executionProvider && (
-            <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-              Last run execution provider:{" "}
-              <strong>{detectionResult.clientTimings.executionProvider}</strong>
-              {" · "}
-              preference{" "}
-              <strong>{detectionResult.clientTimings.onnxPreference}</strong>
-            </p>
-          )}
       </div>
 
       {/* Species Information */}
@@ -1138,34 +1126,6 @@ export default function PredictionPage() {
             <strong>Total Lizards Detected: {detectionResult.totalLizards}</strong>
           </div>
 
-          {detectionResult.clientTimings && (
-            <details
-              style={{
-                marginBottom: "1rem",
-                fontSize: "0.85rem",
-                textAlign: "left",
-                backgroundColor: "#fff",
-                padding: "0.75rem",
-                borderRadius: "8px",
-                border: "1px solid #dee2e6",
-              }}
-            >
-              <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-                Inference timings (client ONNX)
-              </summary>
-              <pre
-                style={{
-                  marginTop: "0.5rem",
-                  overflow: "auto",
-                  maxHeight: "240px",
-                  fontSize: "0.75rem",
-                }}
-              >
-                {JSON.stringify(detectionResult.clientTimings, null, 2)}
-              </pre>
-            </details>
-          )}
-          
           {detectionResult.predictions.map((prediction, index) => (
             <div key={index} className="species-card" style={{
               backgroundColor: "white",
