@@ -867,7 +867,7 @@ function ResultCard({ result, onReset, onCorrect, onUpload, isUploading, inatCon
               border:'1px solid var(--rule)', background:'transparent', color:'var(--ink-2)',
               padding:'10px 14px', borderRadius:3, fontSize:12
             }}>
-              New
+              New Image
             </button>
           </div>
         ) : (

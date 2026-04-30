@@ -9,14 +9,17 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Landing page */}
-        <Route path="/" element={<LandingPage />} />
+        {/* Main sophisticated design (Default) */}
+        <Route path="/" element={<NewDesignPage />} />
 
-        {/* Upload / prediction page */}
+        {/* Legacy landing page */}
+        <Route path="/legacy" element={<LandingPage />} />
+
+        {/* Upload / prediction page (Legacy prediction) */}
         <Route path="/predict" element={<PredictionPage />} />
 
-        {/* New sophisticated design */}
-        <Route path="/newdesign" element={<NewDesignPage />} />
+        {/* Redirect old newdesign route to root */}
+        <Route path="/newdesign" element={<Navigate to="/" replace />} />
 
         {/* Redirect all unknown routes back to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
