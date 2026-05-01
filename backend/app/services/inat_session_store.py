@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+import sqlite3
 import threading
 import time
 from dataclasses import dataclass
@@ -17,14 +18,31 @@ class INatTokenRecord:
 
 
 class INatSessionStore:
-    """Thread-safe store for OAuth CSRF state and session-bound iNat tokens."""
+    """Thread-safe and multi-process store for OAuth CSRF state and session-bound iNat tokens."""
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: str = "/tmp/lizard_lens_sessions.db") -> None:
+        self.db_path = db_path
         self._lock = threading.Lock()
-        # state -> (session_id, created_monotonic)
-        self._pending_oauth: dict[str, tuple[str, float]] = {}
-        # session_id -> tokens
-        self._sessions: dict[str, INatTokenRecord] = {}
+        with self._get_conn() as conn:
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS pending_oauth (
+                    state TEXT PRIMARY KEY,
+                    session_id TEXT,
+                    created_at REAL
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS sessions (
+                    session_id TEXT PRIMARY KEY,
+                    access_token TEXT,
+                    refresh_token TEXT,
+                    expires_at REAL
+                )
+            ''')
+            conn.commit()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.db_path, check_same_thread=False)
 
     def new_session_id(self) -> str:
         return secrets.token_urlsafe(32)
@@ -33,45 +51,60 @@ class INatSessionStore:
         return secrets.token_urlsafe(32)
 
     def register_oauth_state(self, state: str, session_id: str, ttl_seconds: float = 600.0) -> None:
-        now = time.monotonic()
+        now = time.time()
         with self._lock:
-            self._prune_oauth_locked(now, ttl_seconds)
-            self._pending_oauth[state] = (session_id, now)
+            with self._get_conn() as conn:
+                conn.execute('DELETE FROM pending_oauth WHERE ? - created_at > ?', (now, ttl_seconds))
+                conn.execute('INSERT OR REPLACE INTO pending_oauth (state, session_id, created_at) VALUES (?, ?, ?)',
+                             (state, session_id, now))
+                conn.commit()
 
     def pop_oauth_session(self, state: str, ttl_seconds: float = 600.0) -> Optional[str]:
-        now = time.monotonic()
+        now = time.time()
         with self._lock:
-            self._prune_oauth_locked(now, ttl_seconds)
-            item = self._pending_oauth.pop(state, None)
-            if not item:
-                return None
-            session_id, created = item
-            if now - created > ttl_seconds:
-                return None
-            return session_id
-
-    def _prune_oauth_locked(self, now: float, ttl_seconds: float) -> None:
-        stale = [k for k, (_, t) in self._pending_oauth.items() if now - t > ttl_seconds]
-        for k in stale:
-            self._pending_oauth.pop(k, None)
+            with self._get_conn() as conn:
+                conn.execute('DELETE FROM pending_oauth WHERE ? - created_at > ?', (now, ttl_seconds))
+                cur = conn.execute('SELECT session_id, created_at FROM pending_oauth WHERE state = ?', (state,))
+                row = cur.fetchone()
+                if row:
+                    conn.execute('DELETE FROM pending_oauth WHERE state = ?', (state,))
+                    conn.commit()
+                    session_id, created_at = row
+                    if now - created_at <= ttl_seconds:
+                        return session_id
+                conn.commit()
+        return None
 
     def set_tokens(self, session_id: str, record: INatTokenRecord) -> None:
         with self._lock:
-            self._sessions[session_id] = record
+            with self._get_conn() as conn:
+                conn.execute(
+                    'INSERT OR REPLACE INTO sessions (session_id, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?)',
+                    (session_id, record.access_token, record.refresh_token, record.expires_at))
+                conn.commit()
 
     def get_tokens(self, session_id: str) -> Optional[INatTokenRecord]:
         with self._lock:
-            return self._sessions.get(session_id)
+            with self._get_conn() as conn:
+                cur = conn.execute('SELECT access_token, refresh_token, expires_at FROM sessions WHERE session_id = ?', (session_id,))
+                row = cur.fetchone()
+                if row:
+                    return INatTokenRecord(access_token=row[0], refresh_token=row[1], expires_at=row[2])
+        return None
 
     def clear_session(self, session_id: str) -> None:
         with self._lock:
-            self._sessions.pop(session_id, None)
+            with self._get_conn() as conn:
+                conn.execute('DELETE FROM sessions WHERE session_id = ?', (session_id,))
+                conn.commit()
 
     def clear_all(self) -> None:
         """Test helper / admin: wipe all OAuth state and tokens."""
         with self._lock:
-            self._pending_oauth.clear()
-            self._sessions.clear()
+            with self._get_conn() as conn:
+                conn.execute('DELETE FROM pending_oauth')
+                conn.execute('DELETE FROM sessions')
+                conn.commit()
 
 
 # Process-wide singleton (tests can replace module attribute)
