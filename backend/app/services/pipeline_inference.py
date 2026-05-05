@@ -1,0 +1,384 @@
+"""
+Pipeline-based inference using the Spring_2025/pipeline_evaluation.py logic:
+- YOLOv8 for detection
+- Swin Transformer for classification of detected crops
+
+This module lazily loads models on first use and keeps them cached.
+It is designed to be optional: if dependencies or weights are missing,
+callers should catch ImportError/FileNotFoundError and fall back.
+"""
+
+from __future__ import annotations
+
+import os
+from typing import Any, Dict, List, Tuple
+import numpy as np
+import logging
+
+from io import BytesIO
+from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+_yolo = None
+_swin = None
+_processor = None
+_calibrator = None
+
+
+def _load_model_with_quantized_fallback(original_path: str, quantized_path: str, model_name: str) -> str:
+    """
+    Load quantized model if available, otherwise load original.
+    
+    Args:
+        original_path: Path to the original model
+        quantized_path: Path to the quantized model
+        model_name: Name of the model for logging
+    
+    Returns:
+        Path to the model to load (quantized if available, otherwise original)
+    
+    Raises:
+        FileNotFoundError: If neither quantized nor original model exists
+    """
+    if os.path.exists(quantized_path):
+        logger.info(f"✓ Loading quantized {model_name} from {quantized_path}")
+        return quantized_path
+    elif os.path.exists(original_path):
+        logger.warning(f"⚠ Quantized {model_name} not found, using original from {original_path}")
+        return original_path
+    else:
+        raise FileNotFoundError(f"Neither quantized nor original model found for {model_name}")
+
+
+def _get_model_paths() -> Tuple[str, str]:
+    """
+    Returns (detection_weights_path, classification_model_id_or_path).
+    Can be configured via env vars:
+    - DETECTION_WEIGHTS_PATH
+    - CLASSIFICATION_MODEL_ID
+    Defaults based on Spring_2025/pipeline_evaluation.py
+    """
+    # Priority 1: explicit env var
+    det_env = os.getenv("DETECTION_WEIGHTS_PATH")
+    if det_env:
+        det = det_env
+    else:
+        # Priority 2: Check common YOLO model locations
+        candidates = [
+            os.path.join("..", "Spring_2025", "models", "train22_yolov8x_dataset_v4", "weights", "best.pt"),
+            os.path.join("..", "Spring_2025", "models", "yolov8x", "best.pt"),  # YOLOv8x trained model (unified legacy location)
+            os.path.join("..", "Spring_2025", "yolov8x", "weights", "best.pt"),  # Alternative legacy location
+            os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),
+            os.path.join("..", "Spring_2025", "runs", "detect", "train_yolov8n_v2", "weights", "best.pt"),
+            os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov8n", "weights", "best.pt"),
+            os.path.join("..", "Spring_2025", "ultralytics_runs", "detect", "train_yolov11n", "weights", "best.pt"),
+        ]
+        det = None
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                det = os.path.abspath(candidate)
+                break
+        # Priority 3: Default fallback path
+        if det is None:
+            det = os.path.join("..", "Spring_2025", "models", "train22_yolov8x_dataset_v4", "weights", "best.pt")
+    # Classification model: Check env var first, then try local folders
+    clf_env = os.getenv("CLASSIFICATION_MODEL_ID")
+    if clf_env:
+        clf = clf_env
+    else:
+        # Check multiple local model locations
+        clf_candidates = [
+            os.path.join("..", "Spring_2025", "models", "swin_transformer_base_lizard_v4"),  # Unified location
+            os.path.join("..", "Spring_2025", "swin_transformer_base_lizard_v4"),  # Legacy location
+            os.path.join("..", "model_export", "swin_transformer_base_lizard_v4"),
+        ]
+        clf = None
+        for candidate in clf_candidates:
+            if os.path.exists(candidate) and os.path.exists(os.path.join(candidate, "config.json")):
+                clf = os.path.abspath(candidate)  # Use absolute path for from_pretrained
+                break
+        
+        # Fallback to HuggingFace if no local model found
+        if clf is None:
+            clf = "swin-base-patch4-window12-384-finetuned-lizard-class-swin-base"
+    
+    return det, clf
+
+
+def _load_models() -> None:
+    global _yolo, _swin, _processor
+    if _yolo is not None and _swin is not None and _processor is not None:
+        return
+
+    try:
+        from ultralytics import YOLO  # type: ignore
+        from transformers import AutoImageProcessor, SwinForImageClassification  # type: ignore
+        import torch  # noqa: F401  # Ensure torch is available
+    except Exception as e:  # pragma: no cover
+        raise ImportError(
+            "Required ML dependencies not installed. Install 'ultralytics', 'transformers', and 'torch'."
+        ) from e
+
+    det_path, clf_id = _get_model_paths()
+    
+    # Apply quantized fallback for YOLO detection model
+    det_quantized_path = os.path.splitext(det_path)[0] + "_quantized.pt"
+    det_path = _load_model_with_quantized_fallback(det_path, det_quantized_path, "YOLO detection model")
+    
+    if not os.path.exists(det_path):  # pragma: no cover
+        raise FileNotFoundError(
+            f"Detection weights not found at {det_path}. Set DETECTION_WEIGHTS_PATH env var."
+        )
+
+    # Load detection model
+    logger.info(f"Loading YOLO model from: {det_path}")
+    logger.info(f"Model file exists: {os.path.exists(det_path)}")
+    _yolo = YOLO(det_path)
+    
+    # Apply quantized fallback for Swin classification model (only if it's a local path)
+    if os.path.exists(clf_id) or os.path.isdir(clf_id):
+        # Local model path - try quantized variant
+        clf_quantized_id = clf_id + "_quantized"
+        clf_id = _load_model_with_quantized_fallback(clf_id, clf_quantized_id, "Swin classification model")
+    else:
+        # Remote model ID from HuggingFace - log but don't fail
+        logger.info(f"Using remote Swin model from HuggingFace: {clf_id}")
+    
+    _swin = SwinForImageClassification.from_pretrained(clf_id)
+    _processor = AutoImageProcessor.from_pretrained(clf_id)
+    _swin.eval()
+    logger.info(f"Successfully loaded YOLO model from: {det_path}")
+
+    # Optional: load calibrator if provided
+    global _calibrator
+    calib_path = os.getenv("CALIBRATION_PATH")
+    if calib_path and os.path.exists(calib_path):
+        try:
+            from .calibration import load_calibrator
+            _calibrator = load_calibrator(calib_path)
+            logger.info(f"Loaded calibrator from: {calib_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load calibrator at {calib_path}: {e}")
+
+
+def _softmax(logits, temperature: float = 1.0) -> List[float]:
+    """
+    Compute softmax probabilities with optional temperature scaling.
+    
+    Args:
+        logits: Raw model outputs (logit scores)
+        temperature: Temperature scaling factor (default 1.0 = no scaling)
+                     Higher values (e.g., 2.0) make probabilities less extreme/more uniform
+    """
+    import math
+
+    if hasattr(logits, "tolist"):
+        vals = logits.tolist()
+        if isinstance(vals, list) and vals and isinstance(vals[0], list):
+            vals = vals[0]
+    else:
+        vals = list(logits)
+    
+    # Apply temperature scaling: divide logits by temperature before softmax
+    scaled_vals = [v / temperature for v in vals]
+    m = max(scaled_vals)
+    exps = [math.exp(v - m) for v in scaled_vals]
+    s = sum(exps)
+    return [e / s for e in exps]
+
+
+def _compute_iou(boxA: List[float], boxB: List[float]) -> float:
+    """Compute Intersection over Union (IoU) of two bounding boxes"""
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+    if interArea == 0:
+        return 0.0
+    
+    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+    return interArea / float(boxAArea + boxBArea - interArea)
+
+
+def _deduplicate_overlapping_detections(predictions: List[Dict[str, Any]], iou_threshold: float = 0.5) -> List[Dict[str, Any]]:
+    """
+    Previously used to merge overlapping detections; now acts as identity so we keep
+    all YOLO outputs. Retained for compatibility if future tuning is needed.
+    """
+    return predictions
+
+
+def _class_mapping() -> Dict[int, Tuple[str, str]]:
+    """Class id → (species, scientificName) mapping for 5 Florida anoles.
+    Matches the model's config.json label order:
+    0=bark_anole, 1=brown_anole, 2=crested_anole, 3=green_anole, 4=knight_anole
+    """
+    return {
+        0: ("Bark Anole", "Anolis distichus"),
+        1: ("Brown Anole", "Anolis sagrei"),
+        2: ("Crested Anole", "Anolis cristatellus"),
+        3: ("Green Anole", "Anolis carolinensis"),
+        4: ("Knight Anole", "Anolis equestris"),
+    }
+
+
+def predict_image_bytes(
+    image_bytes: bytes,
+    conf_threshold: float = 0.3,
+    top_k: int | None = 5,
+    temperature: float = 2.0,
+) -> Dict[str, Any]:
+    """
+    Run detection + classification on a single image and return a structure
+    compatible with the frontend's expected result format.
+    
+    Args:
+        image_bytes: Image data as bytes
+        conf_threshold: Minimum confidence for detections (default: 0.0, matches CONF_THRESH = 0)
+        top_k: Maximum number of detections to process (default: 5, matches TOP_K = 5)
+        temperature: Temperature scaling for classification probabilities (default: 2.0)
+                     Higher = less extreme probabilities, more realistic confidence scores
+                     temperature=1.0 = no scaling (original behavior)
+                     temperature=2.0 = softer probabilities (recommended)
+    
+    Exact settings from Spring_2025/pipeline_evaluation.py:
+    - CONF_THRESH = 0 (accept all detections)
+    - TOP_K = 5 (process top 5 detections)
+    - IOU_THRESHOLD = 0.5 (for deduplication)
+    - Let YOLO use default NMS (yolo_model(image)[0])
+    - Temperature scaling added for more realistic confidence scores
+    """
+    _load_models()
+
+    assert _yolo is not None and _swin is not None and _processor is not None
+
+    image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+    # Detection - exact match to pipeline_evaluation.py: yolo_model(image)[0]
+    # No explicit conf/iou parameters - use YOLO's defaults
+    img_size = image.size
+    logger.info(f"Image size: {img_size} (width x height)")
+    # Always call YOLO with Bree's thresholds so we keep close detections
+    results = _yolo(
+        image,
+        conf=max(min(conf_threshold if conf_threshold is not None else 0.3, 1.0), 0.0),
+        iou=0.2,
+        max_det=max(int(top_k) if top_k is not None else 5, 1),
+    )[0]
+    boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
+    logger.info(f"YOLO detected {len(boxes)} boxes")
+
+    # Confidence filtering - exact match: boxes[:, 4] >= CONF_THRESH (CONF_THRESH = 0)
+    boxes = boxes[boxes[:, 4] >= (conf_threshold if conf_threshold is not None else 0.3)]
+    boxes = boxes[boxes[:, 4].argsort(descending=True)]  # Sort by confidence (highest first)
+    
+    # Limit to top_k after filtering (secondary safeguard)
+    if top_k is not None and boxes.shape[0] > top_k:
+        boxes = boxes[:top_k]
+
+    class_map = _class_mapping()
+    predictions: List[Dict[str, Any]] = []
+
+    if boxes.shape[0] == 0:
+        return {"totalLizards": 0, "predictions": []}
+
+    for det in boxes:
+        x1, y1, x2, y2, det_conf, _ = det.tolist()
+        logger.info(f"Box coordinates: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}, conf={det_conf:.3f}")
+        logger.info(f"Image size check: {image.size}, box should be within (0,0) to ({image.size[0]}, {image.size[1]})")
+        crop = image.crop((x1, y1, x2, y2))
+        inputs = _processor(images=crop, return_tensors="pt")
+
+        with __import__("torch").no_grad():  # type: ignore
+            logits = _swin(**inputs).logits
+        # Extract logits for logging (before softmax)
+        if hasattr(logits, "tolist"):
+            logit_vals = logits.tolist()
+            if isinstance(logit_vals, list) and logit_vals and isinstance(logit_vals[0], list):
+                logit_vals = logit_vals[0]
+        else:
+            logit_vals = list(logits)
+        logger.info(f"Raw logits: {[f'{l:.2f}' for l in logit_vals]}")
+
+        # Prefer external calibrator if available; fall back to temperature scaling
+        if _calibrator is not None:
+            try:
+                # Try calibrating probabilities first
+                probs = _calibrator.calibrate_probs(logit_vals)
+                logger.info("Applied external calibrator for probabilities")
+            except Exception:
+                # Or calibrate logits then softmax
+                try:
+                    calibrated_logits = _calibrator.calibrate_logits(logit_vals)
+                    probs = _softmax(calibrated_logits, temperature=1.0)
+                    logger.info("Applied external calibrator to logits")
+                except Exception:
+                    logger.warning("Calibrator present but failed; using temperature softmax")
+                    logger.info(f"Using temperature: {temperature} for probability scaling")
+                    probs = _softmax(logits, temperature=temperature)
+        else:
+            logger.info(f"Using temperature: {temperature} for probability scaling")
+            probs = _softmax(logits, temperature=temperature)
+        cls_idx = int(max(range(len(probs)), key=lambda i: probs[i]))
+        cls_conf = float(probs[cls_idx])
+
+        # Prepare alternate class confidences (top 3 others)
+        alternate_confidences: List[Dict[str, Any]] = []
+        sorted_indices = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+        if cls_conf < 0.999:  # Only include when not essentially certain
+            remaining_mass = max(1.0 - cls_conf, 1e-6)
+            for alt_idx in sorted_indices:
+                if alt_idx == cls_idx:
+                    continue
+                alt_conf = float(probs[alt_idx])
+                # Skip negligible probabilities to avoid noise
+                if alt_conf <= 0.0:
+                    continue
+                alt_species, alt_sci = class_map.get(alt_idx, (f"Class {alt_idx}", f"Class {alt_idx}"))
+                alternate_confidences.append(
+                    {
+                        "classIndex": alt_idx,
+                        "species": alt_species,
+                        "scientificName": alt_sci,
+                        "confidence": alt_conf,
+                        "relativeConfidence": alt_conf / remaining_mass,
+                    }
+                )
+                if len(alternate_confidences) >= 3:
+                    break
+        
+        # Log probability distribution for debugging
+        logger.info(f"Classification probabilities: {[f'{p:.4f}' for p in probs]}")
+        logger.info(f"Predicted class: {cls_idx}, Confidence: {cls_conf:.4f} ({cls_conf*100:.1f}%)")
+
+        species, sci = class_map.get(cls_idx, (f"Class {cls_idx}", f"Class {cls_idx}"))
+        predictions.append(
+            {
+                "species": species,
+                "scientificName": sci,
+                "confidence": cls_conf,
+                "count": 1,
+                "box": [float(x1), float(y1), float(x2), float(y2)],
+                "detectionConf": float(det_conf),
+                "classIndex": cls_idx,
+                "alternateConfidences": alternate_confidences if alternate_confidences else None,
+            }
+        )
+
+    # Log before deduplication
+    logger.info(f"Before deduplication: {len(predictions)} detections")
+    for i, p in enumerate(predictions):
+        logger.info(f"  Detection {i}: box={p['box']}, conf={p.get('detectionConf', 0):.3f}, species={p.get('species', 'N/A')}")
+    
+    # Deduplicate overlapping detections (same lizard detected multiple times)
+    # Use lower IoU threshold for deduplication (0.25) to catch boxes that are close but don't overlap 50%
+    # Note: pipeline_evaluation.py IOU_THRESHOLD = 0.5 is for matching predictions to ground truth, not deduplication
+    unique_predictions = _deduplicate_overlapping_detections(predictions, iou_threshold=0.25)
+    
+    logger.info(f"After deduplication: {len(unique_predictions)} detections")
+    
+    return {"totalLizards": len(unique_predictions), "predictions": unique_predictions}
