@@ -1,8 +1,47 @@
-*.txt
-
+# Project data and exports
 Dataset/
-
+*.txt
 *.zip
 
-Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
+# OS files
+.DS_Store
+**/.DS_Store
+
+# Python caches and environments
+__pycache__/
 *.pyc
+.venv/
+**/.venv/
+env/
+venv/
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Environment and local secrets
+.env
+.envrc
+
+# Frontend dependencies and caches
+node_modules/
+.vite/
+
+# Spring 2025 local model artifacts
+Spring_2025/models/
+Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
+
+# Spring 2025 generated evaluation and visualization outputs
+Spring_2025/eval_outputs_florida_v4/
+Spring_2025/eval_outputs_knightanole/
+Spring_2025/eval_outputs_test_knightanole/
+Spring_2025/gradcam_all_layers_cropped/
+Spring_2025/gradcam_outputs/
+Spring_2025/gradcam_outputs_cropped/
