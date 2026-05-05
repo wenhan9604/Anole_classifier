@@ -10,22 +10,14 @@ from pathlib import Path
 import numpy as np
 import math
 import cv2 
-
-# --- Load models ---
-YOLO_MODEL_FILE_PATH = "./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt"
-SWIN_MODEL_FILE_PATH = "swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base"
-
-# --- YOLO model config --- 
-NMS_IOU_THRESHOLD = 0.25
-CONF_THRESH = 0.5
-TOP_K = 5           # Max number of boxes to classify (set to None for no limit)
+import matplotlib.pyplot as plt
+from collections import defaultdict
 
 # --- Evaluation Config ---
 DEST_FOLDER_PATH = "./inference"
 INPUT_IMAGE_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/images"
 INPUT_LABEL_FOLDER = "../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels"
 MISSED_CLASS_ID = 5  # Custom label for missed detections
-EVAL_IOU_THRESHOLD = 0.2
 
 ID_TO_NAME = {0: "bark", 
                 1: "brown",
@@ -77,6 +69,89 @@ def compute_iou(boxA, boxB):
     boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]) # (x2 - x1) * (y2 - y1)
     boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]) 
     return interArea / float(boxAArea + boxBArea - interArea)
+
+def voc_ap(rec, prec):
+    """
+    Compute AP using the VOC 2010+ style:
+    integration over the precision–recall curve.
+    rec, prec are numpy arrays.
+    """
+    # Append sentinel values at both ends
+    mrec = np.concatenate(([0.0], rec, [1.0]))
+    mpre = np.concatenate(([0.0], prec, [0.0]))
+
+    # Make precision monotonically decreasing
+    for i in range(mpre.size - 1, 0, -1):
+        mpre[i - 1] = max(mpre[i - 1], mpre[i])
+
+    # Compute area under curve
+    idx = np.where(mrec[1:] != mrec[:-1])[0]
+    ap = np.sum((mrec[idx + 1] - mrec[idx]) * mpre[idx + 1])
+    return ap
+
+def compute_pr_for_class(cls_id, iou_thr, gt_by_cls, pred_by_cls):
+    """
+    Compute precision-recall arrays for a single class at a given IoU threshold.
+    Returns: rec, prec (both numpy arrays of same length)
+    """
+    gts = gt_by_cls.get(cls_id, [])
+    preds = pred_by_cls.get(cls_id, [])
+
+    npos = len(gts)
+    if npos == 0 or len(preds) == 0:
+        # No GTs or no predictions for this class => undefined PR
+        return np.array([0.0]), np.array([0.0])
+
+    # Map image_id -> list of GT indices for this class
+    gt_img_map = {}
+    for i, g in enumerate(gts):
+        img_id = g["image_id"]
+        gt_img_map.setdefault(img_id, [])
+        gt_img_map[img_id].append(i)
+
+    # Track which GT boxes are already matched
+    gt_used = [False] * len(gts)
+
+    # Sort predictions by confidence descending
+    preds_sorted = sorted(preds, key=lambda x: x["conf"], reverse=True)
+
+    tp = np.zeros(len(preds_sorted))
+    fp = np.zeros(len(preds_sorted))
+
+    for i, p in enumerate(preds_sorted):
+        img_id = p["image_id"]
+        box_p = p["box"]
+
+        if img_id not in gt_img_map:
+            fp[i] = 1
+            continue
+
+        best_iou = 0.0
+        best_gt_idx = -1
+        for gt_idx in gt_img_map[img_id]:
+            if gt_used[gt_idx]:
+                continue
+            box_g = gts[gt_idx]["box"]
+            iou = compute_iou(box_p, box_g)
+            if iou > best_iou:
+                best_iou = iou
+                best_gt_idx = gt_idx
+
+        if best_iou >= iou_thr and best_gt_idx >= 0:
+            tp[i] = 1
+            gt_used[best_gt_idx] = True
+        else:
+            fp[i] = 1
+
+    tp_cum = np.cumsum(tp)
+    fp_cum = np.cumsum(fp)
+
+    eps = 1e-8
+    rec = tp_cum / (npos + eps)
+    prec = tp_cum / (tp_cum + fp_cum + eps)
+
+    return rec, prec
+
 
 def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_labels, pred_conf, img_name = "annotated", target_dir = "."):
 # ============================================================
@@ -134,21 +209,51 @@ def annotate_and_save_image(image_rgb, gt_boxes, gt_labels, pred_boxes, pred_lab
     cv2.imwrite(str(save_path), annotated)
     print(f"Annotated image saved to: {save_path}")
 
-def main_function():
+def save_image(img_rgb, img_name = "annotated", target_dir = "."):
+
+    # Work in BGR for OpenCV drawing
+    img_copy = img_rgb.copy()
+    img_copy = cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR) #cv2.imwrite() requires BGR
+
+    out_name = Path(img_name).stem + "_annotated.jpg"
+    save_path = target_dir / out_name
+    cv2.imwrite(str(save_path), img_copy)
+    print(f"Cropped image saved to: {save_path}")
+
+# eval_iou_thresh - Affects f1-score, precision, recall and confusion matrix. Standardize at 0.5, aligns with PASCAL VOC
+def evaluate_performance(yolo_model_file_path=None, swin_model_file_path=None, det_conf_thresh=0.5, nms_iou_thresh=0.7, eval_iou_thresh = 0.5, top_k=5):
+    """
+    Parameters:
+        det_conf_thresh (float): Filters predictions lower than this threshold.  
+        nms_iou_thresh (float): Controls how aggressively overlapping predictions are suppressed. Rec. range: 0.5–0.7
+        eval_iou_thresh (float): Filters for pred and GT bbox overlap. Affects f1-score, precision, recall and confusion matrix. Set at 0.5, aligns with PASCAL VOC 
+        top_k (int): Defines the number of prediction from detection model for 1 image.
+
+    """
+
+    if (yolo_model_file_path is None or not os.path.exists(yolo_model_file_path)):
+        print(f"yolo model file path cannot be found. yolo_model_file_path: {yolo_model_file_path}")
+        return
 
     print(f"--- EVALUATION PIPELINE ---")
-    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {NMS_IOU_THRESHOLD} \n CONF_THRESH: {CONF_THRESH} \n MAX_DETECTION: {TOP_K} \n")
+    print(f"YOLO Model Config: NMS_IOU_THRESHOLD: {nms_iou_thresh} \n CONF_THRESH: {det_conf_thresh} \n MAX_DETECTION: {top_k} \n")
 
-    print(f"EVAL Config: EVAL_IOU_THRESHOLD: {EVAL_IOU_THRESHOLD} \n")
+    print(f"EVAL Config: EVAL_IOU_THRESHOLD: {eval_iou_thresh} \n")
 
     print(f"--- LOADING MODELS ---")
-    print(f"YOLO_MODEL_FILE_PATH: {YOLO_MODEL_FILE_PATH} \n SWIN_MODEL_FILE_PATH; {SWIN_MODEL_FILE_PATH} \n")
+    print(f"YOLO_MODEL_FILE_PATH: {yolo_model_file_path} \n")
+
+    if (swin_model_file_path):
+        print(f"SWIN_MODEL_FILE_PATH; {swin_model_file_path} \n")
+
 
     # --- Load models ---
-    yolo_model = YOLO(YOLO_MODEL_FILE_PATH)
-    swin_model = SwinForImageClassification.from_pretrained(SWIN_MODEL_FILE_PATH)
-    processor = AutoImageProcessor.from_pretrained(SWIN_MODEL_FILE_PATH)
-    swin_model.eval()
+    yolo_model = YOLO(yolo_model_file_path)
+
+    if (swin_model_file_path):
+        swin_model = SwinForImageClassification.from_pretrained(swin_model_file_path)
+        processor = AutoImageProcessor.from_pretrained(swin_model_file_path)
+        swin_model.eval()
 
     print(f"--- COMPLETED LOADING MODELS ---")
 
@@ -170,12 +275,20 @@ def main_function():
     mis_class_img_dir = dest_root_dir / "mis_classification"
     mis_class_img_dir.mkdir(parents=True, exist_ok=True)
 
+    if (swin_model_file_path):
+        cropped_img_dir = dest_root_dir / "cropped_img"
+        cropped_img_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"--- Saving results and debug images to {dest_root_dir} ---\n")
 
     # --- Storage for final eval ---
     y_true_all = []
     y_pred_all = []
+
+    # --- Storage for detection mAP computation ---
+    # Group all GTs and predictions by class across the whole dataset.
+    gt_by_cls = defaultdict(list)    # cls_id -> list of {"image_id", "box"}
+    pred_by_cls = defaultdict(list)  # cls_id -> list of {"image_id", "box", "conf"}
 
     if not os.path.isdir(INPUT_IMAGE_FOLDER) or not os.path.isdir(INPUT_LABEL_FOLDER):
         
@@ -192,7 +305,7 @@ def main_function():
         if not os.path.exists(label_path):
             continue
 
-        # print(f"Loaded image file: {image_path} \n loaded label file: {label_path}")
+        print(f"\n\n\n --- Analyzing Image --- \nLoaded image file: {image_path} \nLoaded label file: {label_path}")
 
         image_BGR = cv2.imread(image_path)
         image_RGB = cv2.cvtColor(image_BGR, cv2.COLOR_BGR2RGB)
@@ -209,56 +322,78 @@ def main_function():
                 gt_boxes.append(box)
                 gt_labels.append(cls_id)
 
-                print(f"\n\nLabel Path: {label_path}. Parts: {parts}")
-                print(f"yolo converted box: {box}")
+                print(f"\nLabel File content (GT): {parts}")
+                print(f"GT Box (yolo to xyxy): {box}")
 
+                # For mAP: store GT per class
+                gt_by_cls[cls_id].append({
+                    "image_id": img_name,
+                    "box": np.array(box, dtype=float)
+                })
 
         gt_boxes = torch.tensor(gt_boxes)
         gt_labels = torch.tensor(gt_labels)
 
+        print(f"\n--- Pipeline inference ---")
+
         # --- Detection + Cropping + Classification ---
-        results = yolo_model(
+        results = yolo_model.predict(
             image_RGB,
-            conf=CONF_THRESH,   # confidence threshold
-            iou=NMS_IOU_THRESHOLD,     # IoU threshold for NMS
-            max_det=TOP_K, # max detections per image
+            conf=det_conf_thresh,   # confidence threshold
+            iou=nms_iou_thresh,     # IoU threshold for NMS
+            max_det=top_k, # max detections per image
+            agnostic_nms=True
         )[0]
 
         boxes = results.boxes.data  # Tensor: [x1, y1, x2, y2, conf, class_id]
 
-        # print(f"Raw Detection result: {boxes}")
+        print(f"Raw Detection result: {boxes}")
 
         # --- Confidence filtering ---
-        boxes = boxes[boxes[:, 4] >= CONF_THRESH]
+        boxes = boxes[boxes[:, 4] >= det_conf_thresh]
         boxes = boxes[boxes[:, 4].argsort(descending=True)]
 
         # --- Limit to top K ---
-        if TOP_K is not None:
-            boxes = boxes[:TOP_K]
+        if top_k is not None:
+            boxes = boxes[:top_k]
 
         pred_boxes, pred_labels, pred_conf = [], [], []
 
         for det in boxes:
-            x1, y1, x2, y2, conf, _ = det.tolist()
+
+            pred_label = None
+            x1, y1, x2, y2, conf, yolo_pred_label = det.tolist()
 
             print(f"Individual Detection result: {det.tolist()}")
 
             x1, y1, x2, y2 = clamp_coords(x1, y1, x2, y2, img_w, img_h)
 
-            crop = image_RGB[y1:y2, x1:x2]
+            if (swin_model_file_path):
 
-            print(f"Cropped image dimensions: {crop.shape}")
+                crop = image_RGB[y1:y2, x1:x2]
 
-            inputs = processor(images=crop, return_tensors="pt")
-            with torch.no_grad():
-                logits = swin_model(**inputs).logits
-                swin_class = logits.argmax(dim=1).item()
+                save_image(crop, img_name, cropped_img_dir)
 
-            print(f"Prediction bb: {x1} {y1} {x2} {y2}, Conf: {conf:.3f}, Swin Class: {swin_class}")
+                inputs = processor(images=crop, return_tensors="pt")
+                with torch.no_grad():
+                    logits = swin_model(**inputs).logits
+                    pred_label = logits.argmax(dim=1).item()
+
+            else:
+                pred_label = yolo_pred_label
+
+            print(f"Prediction bbox: {x1} {y1} {x2} {y2}, Conf: {conf:.3f}, Pred_label: {ID_TO_NAME[pred_label]}")
 
             pred_boxes.append([x1, y1, x2, y2])
             pred_conf.append(conf)
-            pred_labels.append(swin_class)
+            pred_labels.append(pred_label)
+
+            # For mAP: store prediction per class
+            pred_by_cls[int(pred_label)].append({
+                "image_id": img_name,
+                "box": np.array([x1, y1, x2, y2], dtype=float),
+                "conf": float(conf)
+            })
 
         # Annotate image with ground truth and pred labels and save image
 
@@ -280,11 +415,11 @@ def main_function():
                     continue
 
                 iou = compute_iou(pb, gb.tolist()) 
-                if iou >= EVAL_IOU_THRESHOLD and iou > best_iou: 
+                if iou >= eval_iou_thresh and iou > best_iou: 
                     best_iou = iou
                     best_idx = idx
 
-                print(f"--- Matching each prediction to best ground truth bbox by IoU ---")
+                print(f"\n--- Matching each prediction to best ground truth bbox by IoU ---")
 
             #Append the GT label and predicted label to lists used later for classification metrics.
             if best_idx >= 0:
@@ -338,9 +473,143 @@ def main_function():
         zero_division=0
     ))
 
+    # ----------------------------------------------------
+    #  Detection mAP evaluation (COCO-style IoU thresholds)
+    # ----------------------------------------------------
+    print("\n--- Detection mAP Evaluation ---")
+
+    # IoU thresholds for COCO-style eval: 0.50:0.95 with step 0.05
+    iou_thresholds = [round(t, 2) for t in np.arange(0.50, 0.96, 0.05)]
+
+    aps_by_thr = {thr: {} for thr in iou_thresholds}
+    mAP_by_thr = {}
+
+    # Loop over IoU thresholds
+    for thr in iou_thresholds:
+        print(f"\nEvaluating AP at IoU = {thr:.2f}")
+        for cls_id, cls_name in ID_TO_NAME.items():
+            gts = gt_by_cls.get(cls_id, [])
+            preds = pred_by_cls.get(cls_id, [])
+
+            npos = len(gts)
+            if npos == 0:
+                print(f"  Class '{cls_name}' (id={cls_id}): no GT boxes, skipping AP.")
+                aps_by_thr[thr][cls_id] = np.nan
+                continue
+
+            # Map: image_id -> list of GT indices for this class
+            gt_img_map = {}
+            for i, g in enumerate(gts):
+                img_id = g["image_id"]
+                gt_img_map.setdefault(img_id, [])
+                gt_img_map[img_id].append(i)
+
+            # Track which GT boxes are already matched
+            gt_used = [False] * len(gts)
+
+            # Sort predictions by confidence (descending)
+            preds_sorted = sorted(preds, key=lambda x: x["conf"], reverse=True)
+
+            tp = np.zeros(len(preds_sorted))
+            fp = np.zeros(len(preds_sorted))
+
+            for i, p in enumerate(preds_sorted):
+                img_id = p["image_id"]
+                box_p = p["box"]
+
+                if img_id not in gt_img_map:
+                    # No GT of this class in this image
+                    fp[i] = 1
+                    continue
+
+                best_iou = 0.0
+                best_gt_idx = -1
+                for gt_idx in gt_img_map[img_id]:
+                    if gt_used[gt_idx]:
+                        continue
+                    box_g = gts[gt_idx]["box"]
+                    iou = compute_iou(box_p, box_g)
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_gt_idx = gt_idx
+
+                if best_iou >= thr and best_gt_idx >= 0:
+                    # True positive
+                    tp[i] = 1
+                    gt_used[best_gt_idx] = True
+                else:
+                    # False positive
+                    fp[i] = 1
+
+            # Cumulative sums
+            tp_cum = np.cumsum(tp)
+            fp_cum = np.cumsum(fp)
+
+            eps = 1e-8
+            rec = tp_cum / (npos + eps)
+            prec = tp_cum / (tp_cum + fp_cum + eps)
+
+            ap = voc_ap(rec, prec)
+            aps_by_thr[thr][cls_id] = ap
+            print(f"  AP for class '{cls_name}' (id={cls_id}) at IoU={thr:.2f}: {ap:.4f}")
+
+        # mAP at this IoU = mean over valid classes
+        ap_values = [v for v in aps_by_thr[thr].values() if not np.isnan(v)]
+        if len(ap_values) > 0:
+            mAP_by_thr[thr] = float(np.mean(ap_values))
+        else:
+            mAP_by_thr[thr] = 0.0
+
+    # Extract key metrics
+    mAP_50 = mAP_by_thr.get(0.50, 0.0)
+    mAP_75 = mAP_by_thr.get(0.75, 0.0)
+    mAP_50_95 = float(np.mean(list(mAP_by_thr.values()))) if len(mAP_by_thr) > 0 else 0.0
+
+    print("\n--- Summary mAP ---")
+    print(f"mAP@0.50      : {mAP_50:.4f}")
+    print(f"mAP@0.75      : {mAP_75:.4f}")
+    print(f"mAP@0.50:0.95 : {mAP_50_95:.4f}")
+
+    # ----------------------------------------------------
+    #  Precision-Recall Curves at a chosen IoU threshold
+    # ----------------------------------------------------
+    pr_iou = 0.50   # or 0.75, or EVAL_IOU_THRESHOLD, up to you
+
+    print(f"\n--- Plotting Precision-Recall Curves at IoU = {pr_iou:.2f} ---")
+
+    plt.figure(figsize=(7, 6))
+
+    for cls_id, cls_name in ID_TO_NAME.items():
+        rec, prec = compute_pr_for_class(cls_id, pr_iou, gt_by_cls, pred_by_cls)
+
+        # Some classes may have trivial curves; skip if no useful data
+        if len(rec) <= 1 and len(prec) <= 1:
+            print(f"  Class '{cls_name}' has insufficient data for PR curve, skipping.")
+            continue
+
+        plt.plot(rec, prec, label=f"{cls_name} (id={cls_id})")
+
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title(f"Precision-Recall Curves (IoU = {pr_iou:.2f})")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.grid(True)
+    plt.legend()
+
+    pr_save_path = dest_root_dir / f"pr_curves_iou_{int(pr_iou*100):02d}.png"
+    plt.tight_layout()
+    plt.savefig(pr_save_path, dpi=200)
+    plt.close()
+
+    print(f"Saved Precision-Recall curves to: {pr_save_path}")
+
+
+
 
 if __name__ == "__main__":
 
-    main_function()
+    evaluate_performance(yolo_model_file_path="./runs/detect/train22_yolov8x_dataset_v4/weights/best.pt",
+    swin_model_file_path="swin-base-patch4-window12-384-finetuned-lizard-v3-swin-base")
 
 
