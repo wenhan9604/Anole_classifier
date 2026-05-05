@@ -1,6 +1,97 @@
-*.txt
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.pyc
 
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv/
+
+# Conda
+.conda/
+conda-meta/
+*.conda
+
+# Backend
+backend/.env
+.env
+backend/models/
+backend/inference/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+node_modules
+dist
+dist-ssr
+*.local
+
+# ML Models
+*.pt
+*.pth
+*.h5
+*.pb
+*.onnx
+Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
+
+# Datasets
 Dataset/
+!Dataset/README.md
+Spring_2025/data/int-anoles/
+
+# IDE
+.cursor/
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+backend_log.txt
+
+# Docker
+*.pid
 
 Models/
 
@@ -12,3 +103,16 @@ Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base/
 Spring_2025/inference
 
 Figures/*
+
+# Ignore model weights and exports
+model_export/
+Spring_2025/ultralytics_runs/
+*.pt
+*.bin
+*.safetensors
+*.h5
+*.onnx
+Spring_2025/swin_transformer_base_lizard_v4/
+Spring_2025/yolov8x/
+Spring_2025/models/
+docs

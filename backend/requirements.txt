@@ -1,0 +1,30 @@
+# Core ML and Data Science
+torch>=2.0.0,<2.7.0
+torchvision>=0.15.0,<0.22.0
+numpy>=1.24.0,<2.0.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+pillow>=9.0.0
+
+# FastAPI backend
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+pydantic>=2.9.2
+pydantic-settings>=2.6.0
+
+# ML models
+ultralytics>=8.3.38
+transformers>=4.46.3
+
+# Optional: ONNX Runtime for faster inference
+# Use onnxruntime-gpu if you have CUDA support
+onnxruntime>=1.16.0  # For CPU inference
+# onnxruntime-gpu>=1.16.0  # Uncomment for GPU inference
+
+# Utilities
+python-dotenv>=1.0.1
+httpx>=0.27.0
+
+# Tests
+pytest>=8.0.0

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend.Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount model directories
+      - ../Spring_2025/runs:/app/models/runs:ro
+      - ../Spring_2025/swin-base-patch4-window12-384-finetuned-lizard-class-swin-base:/app/models/swin:ro
+    environment:
+      - YOLO_MODEL_PATH=/app/models/runs/detect/train_yolov8n_v2/weights/best.pt
+      - SWIN_MODEL_PATH=/app/models/swin
+      - HOST=0.0.0.0
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    restart: unless-stopped
+
+networks:
+  default:
+    name: anole-classifier-network
+
