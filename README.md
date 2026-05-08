@@ -3,7 +3,7 @@
 A full-stack web application for detecting and classifying 5 Florida anole species (images) from uploaded images using a 2-stage machine learning pipeline.
 
 <p align="center">
-  <img src="./project_landing_page/FloridaAnoleSpeciesLandscape.png"/>
+  <img src="./project_landing_page/lizardlens_interface.png"/>
 </p>
 
 ## What This Does
@@ -16,6 +16,10 @@ A full-stack web application for detecting and classifying 5 Florida anole speci
 - **Flexible Inference**: Choose between server-side (PyTorch/ONNX) or client-side (browser ONNX) inference
 - **Confidence Scoring**: Shows confidence levels for each species prediction with visual indicators
 - **Mobile Support**: Responsive design optimized for mobile devices
+
+<p align="center">
+  <img src="./project_landing_page/FloridaAnoleSpeciesLandscape.png"/>
+</p>
 
 ## Architecture
 
