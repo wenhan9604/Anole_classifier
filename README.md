@@ -1,6 +1,6 @@
 # Lizard Lens
 
-A full-stack web application for detecting and classifying 5 Florida anole species (images) from uploaded images using a 2-stage machine learning pipeline.
+A full-stack web application for detecting and classifying 5 Florida anole species from uploaded images using a 2-stage machine learning pipeline.
 
 <p align="center">
   <img src="./project_landing_page/lizardlens_interface.png"/>
