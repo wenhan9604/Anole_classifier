@@ -1,13 +1,12 @@
 # Lizard Lens
 
-A full-stack web application for detecting and classifying Florida anole species from uploaded images using a 3-stage machine learning pipeline.
+A full-stack web application for detecting and classifying Florida anole species from uploaded images using a 2-stage machine learning pipeline.
 
 ## What This Does
 
-- **3-Stage ML Pipeline**: 
-  1. YOLOv8x detection to locate lizards in images
-  2. Automatic cropping of detected regions
-  3. Swin Transformer classification for species identification
+- **2-Stage ML Pipeline**: 
+  1. YOLOv8x detection to locate lizards in images 
+  2. Swin Transformer classification of cropped lizard images for species identification
 - **5 Species Support**: Green Anole, Brown Anole, Crested Anole, Knight Anole, Bark Anole
 - **Multi-Detection**: Can detect and classify multiple lizards in a single image
 - **Flexible Inference**: Choose between server-side (PyTorch/ONNX) or client-side (browser ONNX) inference
@@ -135,6 +134,8 @@ Anole_classifier/
 │   ├── public/                   # ONNX WASM files
 │   └── package.json              # Node dependencies
 │
+├── Dataset/  					  # Stores datasets
+│
 ├── Spring_2025/
 │   ├── models/                   # Trained ML models
 │   │   ├── yolov8x/             # YOLOv8x detection models
@@ -143,7 +144,8 @@ Anole_classifier/
 │   │   ├── swin_transformer_base_lizard_v4/  # Swin classification
 │   │   ├── yolo_best.onnx       # Standalone YOLO ONNX
 │   │   └── swin_model.onnx      # Standalone Swin ONNX
-│   └── *.ipynb                  # Training notebooks
+│   ├── notebooks/                
+│   │   ├── *.ipynb/             # #
 │
 └── docs/                         # Documentation
     ├── ONNX_SETUP.md            # ONNX setup guide
@@ -187,14 +189,67 @@ curl -X POST "http://localhost:8000/api/predict?use_onnx=true" \
   -F "file=@lizard.jpg"
 ```
 
-## Model Information
+## Training and Evaluation
 
-- **YOLOv8x Detection**: Single-class object detection model trained on anole images
-- **Swin Transformer Base**: Multi-class classification model for 5 anole species
-- **Model Size**: ~750 MB total (620 MB for ONNX models)
-- **Training Data**: Custom dataset of Florida anole species
+### Dataset preparation
+- Download the datasets and store them in the `./Dataset` directory.
+- The end-to-end pipeline evaluation expects the test split of the `florida_five_anole_10000_v4` dataset, with images and YOLO-format labels at:
+	- `INPUT_IMAGE_FOLDER`: `../Dataset/yolo_training/florida_five_anole_10000_v4/test/images`
+	- `INPUT_LABEL_FOLDER`: `../Dataset/yolo_training/florida_five_anole_10000_v4/test/labels`
 
-For more details, see [`Spring_2025/models/README.md`](Spring_2025/models/README.md)
+### Stage 1 - Lizard Detection Model Training
+- Fine-tune the YOLOv8x detection model using `./Spring_2025/notebooks/object_detection_train yolov8x_dataset_v4_pipeline.ipynb`.
+- Training configuration (per the notebook):
+	- Base weights: `yolov8x.pt`
+	- Epochs: 100
+	- Image size: 640
+	- Batch size: 48
+- Validation on the test dataset reports mAP@0.50, mAP@0.75, mAP@0.50-0.95, precision, recall, F1-score, and inference speed.
+- Alternative detection backbones (YOLOv8 small/medium/large/extra-large, YOLOv11, YOLOv12) can be trained via the other `object_detection_train_*.ipynb` notebooks in the same folder.
+
+### Stage 2 - Classification Model Training
+- Fine-tune the Swin Transformer (Base) classifier on the cropped lizard dataset using `./Spring_2025/notebooks/classification_train_hugging_face.ipynb`.
+- Training configuration (per the notebook):
+	- Base checkpoint: `microsoft/swin-base-patch4-window12-384`
+	- Epochs: 30
+	- Per-device batch size: 128
+	- Gradient accumulation steps: 4
+	- Learning rate: 5e-5
+	- Warmup ratio: 0.1
+	- Best model selected by validation accuracy (`metric_for_best_model="accuracy"`, `load_best_model_at_end=True`)
+- Augmentations: `RandomResizedCrop` and `RandomHorizontalFlip` followed by ImageNet normalization for training; `Resize` + `CenterCrop` + normalization for validation.
+- An Ultralytics-based classification training option is also provided in `classification_train_yolo.ipynb`.
+- Each training notebook also produces evaluation against the test split, reporting precision, recall, F1-score, and a confusion matrix.
+
+### End-to-end evaluation of LizardLens (pipeline)
+- Place the fine-tuned YOLOv8x and Swin Transformer weights so that `pipeline_evaluation.py` can load them via the module-level paths at the top of the file:
+	- `YOLO_MODEL_FILE_PATH` -> path to the YOLOv8x `best.pt`
+	- `SWIN_MODEL_FILE_PATH` -> path to the fine-tuned Swin Transformer checkpoint directory
+- Update the evaluation thresholds at the top of `pipeline_evaluation.py` as needed:
+	- `CONF_THRESH` (default `0.5`) - YOLO detections below this confidence are discarded
+	- `NMS_IOU_THRESHOLD` (default `0.25`) - IoU threshold for non-maximum suppression; overlapping detections are grouped and only the highest-confidence box per group is kept
+	- `TOP_K` (default `5`) - maximum number of detections per image passed to the classifier (set `None` for no limit)
+	- `EVAL_IOU_THRESHOLD` (default `0.2`) - minimum IoU required between a prediction and a ground-truth box for them to be matched during evaluation
+- Run the pipeline:
+	- `python pipeline_evaluation.py`, or run `pipeline_evaluation.ipynb` / `pipeline_evaluation_pipeline.ipynb`
+- Pipeline behaviour, per image in the test set:
+	1. YOLOv8x predicts bounding boxes; detections are filtered by `CONF_THRESH`, deduplicated via NMS at `NMS_IOU_THRESHOLD`, sorted by confidence, and trimmed to the top `TOP_K`.
+	2. Each surviving box is cropped and classified by the fine-tuned Swin Transformer.
+	3. Predictions are greedy-matched to ground-truth boxes using IoU >= `EVAL_IOU_THRESHOLD`; matched (y_true, y_pred) pairs are recorded.
+	4. Unmatched ground-truth boxes are recorded as **missed detections** (`y_pred = MISSED_CLASS_ID = 5`).
+	5. Unmatched predictions are recorded as **false positives** (`y_true = MISSED_CLASS_ID = 5`).
+	6. Matched predictions whose class differs from the ground-truth class are additionally saved as **misclassifications**.
+- Outputs are written to a new run directory `./inference/run_<YYYYMMDD_HHMMSS>/`:
+	- `eval_results.csv` - `(y_true, y_pred)` pairs for every detection across the test set
+	- `annotated_images/` - every test image annotated with ground-truth boxes (blue) and predicted boxes (red, with predicted class and detection confidence)
+	- `missed_detections/` - annotated copies of images containing at least one unmatched ground-truth box
+	- `false_positives/` - annotated copies of images containing at least one unmatched prediction
+	- `mis_classification/` - annotated copies of images where a matched prediction had the wrong class
+	- A scikit-learn `classification_report` printed to stdout, with per-class precision, recall, and F1 across the five anole classes plus a `Background` row that aggregates missed detections and false positives.
+
+### End-to-end evaluation of other models
+- Place alternative detection or classification weights in the same directory referenced by `YOLO_MODEL_FILE_PATH` / `SWIN_MODEL_FILE_PATH` and update the paths at the top of `pipeline_evaluation.py`.
+- Variants of the pipeline evaluation notebook are provided for other detection backbones, e.g. `pipeline_evaluation_yolov8.ipynb` and `pipeline_evaluation_yolov12.ipynb`. Each follows the same overall structure as `pipeline_evaluation.py`.
 
 ## Documentation
 
