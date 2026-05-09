@@ -153,7 +153,8 @@ Anole_classifier/
 │   │   ├── yolo_best.onnx       # Standalone YOLO ONNX
 │   │   └── swin_model.onnx      # Standalone Swin ONNX
 │   ├── notebooks/                
-│   │   ├── *.ipynb/             # #
+│   │   ├── *.ipynb/             # Training notebooks
+│   ├── inference/           	 # Pipeline evaluation results are stored here
 │
 └── docs/                         # Documentation
     ├── ONNX_SETUP.md            # ONNX setup guide
@@ -225,8 +226,6 @@ curl -X POST "http://localhost:8000/api/predict?use_onnx=true" \
 	- Learning rate: 5e-5
 	- Warmup ratio: 0.1
 	- Best model selected by validation accuracy (`metric_for_best_model="accuracy"`, `load_best_model_at_end=True`)
-- Augmentations: `RandomResizedCrop` and `RandomHorizontalFlip` followed by ImageNet normalization for training; `Resize` + `CenterCrop` + normalization for validation.
-- An Ultralytics-based classification training option is also provided in `classification_train_yolo.ipynb`.
 - Each training notebook also produces evaluation against the test split, reporting precision, recall, F1-score, and a confusion matrix.
 
 ### End-to-end evaluation of LizardLens (pipeline)
@@ -247,7 +246,7 @@ curl -X POST "http://localhost:8000/api/predict?use_onnx=true" \
 	4. Unmatched ground-truth boxes are recorded as **missed detections** (`y_pred = MISSED_CLASS_ID = 5`).
 	5. Unmatched predictions are recorded as **false positives** (`y_true = MISSED_CLASS_ID = 5`).
 	6. Matched predictions whose class differs from the ground-truth class are additionally saved as **misclassifications**.
-- Outputs are written to a new run directory `./inference/run_<YYYYMMDD_HHMMSS>/`:
+- Outputs are written to a new run directory `./Spring_2025/inference/run_<YYYYMMDD_HHMMSS>/`:
 	- `eval_results.csv` - `(y_true, y_pred)` pairs for every detection across the test set
 	- `annotated_images/` - every test image annotated with ground-truth boxes (blue) and predicted boxes (red, with predicted class and detection confidence)
 	- `missed_detections/` - annotated copies of images containing at least one unmatched ground-truth box
