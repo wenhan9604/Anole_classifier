@@ -39,23 +39,23 @@ class DetectionResult(BaseModel):
 @router.get("/models/info")
 async def get_models_info():
     """Get information about available models"""
-    try:
-        from ..services.onnx_pipeline_inference import get_onnx_info, is_onnx_available
+    # try:
+    #     from ..services.onnx_pipeline_inference import get_onnx_info, is_onnx_available
         
-        onnx_info = get_onnx_info()
+    #     onnx_info = get_onnx_info()
         
-        return {
-            "pytorch": {
-                "available": True,
-                "type": "PyTorch"
-            },
-            "onnx": onnx_info
-        }
-    except Exception as e:
-        return {
-            "pytorch": {"available": True},
-            "onnx": {"available": False, "error": str(e)}
-        }
+    #     return {
+    #         "pytorch": {
+    #             "available": True,
+    #             "type": "PyTorch"
+    #         },
+    #         "onnx": onnx_info
+    #     }
+    # except Exception as e:
+    return {
+        "pytorch": {"available": True, "type": "PyTorch"},
+        # "onnx": {"available": False, "error": str(e)}
+    }
 
 
 @router.post("/predict")
@@ -84,18 +84,18 @@ async def predict(
     data = await file.read()
     
     try:
-        if use_onnx:
-            # Use ONNX-enabled pipeline
-            from ..services.onnx_pipeline_inference import predict_image_bytes_onnx
+        # if use_onnx:
+        #     # Use ONNX-enabled pipeline
+        #     from ..services.onnx_pipeline_inference import predict_image_bytes_onnx
             
-            result = predict_image_bytes_onnx(data)
-            model_type = "onnx-cpu"
-        else:
-            # Use PyTorch pipeline (default)
-            from ..services.pipeline_inference import predict_image_bytes
-            
-            result = predict_image_bytes(data)
-            model_type = "pytorch-cpu"
+        #     result = predict_image_bytes_onnx(data)
+        #     model_type = "onnx-cpu"
+        # else:
+        # Use PyTorch pipeline (default)
+        from ..services.pipeline_inference import predict_image_bytes
+        
+        result = predict_image_bytes(data)
+        model_type = "pytorch-cpu"
         
         preds: list[Prediction] = [
             Prediction(
@@ -121,11 +121,11 @@ async def predict(
         logger.error(f"Prediction failed (use_onnx={use_onnx}): {str(e)}", exc_info=True)
         
         error_msg = f"Prediction failed: {str(e)}."
-        if use_onnx and "onnxruntime" in str(e).lower():
-            error_msg += " ONNX Runtime not installed. Install with: pip install onnxruntime"
-        elif use_onnx and "not found" in str(e).lower():
-            error_msg += " ONNX models not found. Ensure yolo_best.onnx and swin_model.onnx are in backend/models/"
-        else:
-            error_msg += " Please ensure ML dependencies are installed."
+        # if use_onnx and "onnxruntime" in str(e).lower():
+        #     error_msg += " ONNX Runtime not installed. Install with: pip install onnxruntime"
+        # elif use_onnx and "not found" in str(e).lower():
+        #     error_msg += " ONNX models not found. Ensure yolo_best.onnx and swin_model.onnx are in backend/models/"
+        # else:
+        error_msg += " Please ensure ML dependencies are installed."
         
         raise HTTPException(status_code=500, detail=error_msg)

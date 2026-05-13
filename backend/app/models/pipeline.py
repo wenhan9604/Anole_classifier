@@ -13,12 +13,12 @@ from typing import List, Dict, Any, Optional, Tuple
 import time
 import numpy as np
 
-try:
-    import onnxruntime as ort
-    ONNX_AVAILABLE = True
-except ImportError:
-    ONNX_AVAILABLE = False
-    logging.warning("onnxruntime not available. ONNX support will be disabled.")
+# try:
+#     import onnxruntime as ort
+#     ONNX_AVAILABLE = True
+# except ImportError:
+ONNX_AVAILABLE = False
+#     logging.warning("onnxruntime not available. ONNX support will be disabled.")
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +64,11 @@ class AnolePipeline:
         self.processor = None
         
         # Set device
-        if device is None:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = device
+        # if device is None:
+        #     self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # else:
+        #     self.device = device
+        self.device = "cpu"
             
         logger.info(f"Using device: {self.device}")
         logger.info(f"Using ONNX: {self.use_onnx}")
@@ -78,34 +79,34 @@ class AnolePipeline:
     def _load_models(self, yolo_path: str, swin_path: str):
         """Load YOLOv8 and Swin Transformer models (PyTorch or ONNX)"""
         try:
-            if self.use_onnx:
-                if not ONNX_AVAILABLE:
-                    raise RuntimeError("ONNX support requested but onnxruntime is not installed")
+            # if self.use_onnx:
+            #     if not ONNX_AVAILABLE:
+            #         raise RuntimeError("ONNX support requested but onnxruntime is not installed")
                 
-                # Load YOLO ONNX model
-                logger.info(f"Loading YOLO ONNX model from {yolo_path}")
-                providers = self._get_onnx_providers()
-                self.yolo_session = ort.InferenceSession(yolo_path, providers=providers)
-                logger.info(f"YOLO ONNX model loaded with providers: {self.yolo_session.get_providers()}")
+            #     # Load YOLO ONNX model
+            #     logger.info(f"Loading YOLO ONNX model from {yolo_path}")
+            #     providers = self._get_onnx_providers()
+            #     self.yolo_session = ort.InferenceSession(yolo_path, providers=providers)
+            #     logger.info(f"YOLO ONNX model loaded with providers: {self.yolo_session.get_providers()}")
                 
-                # Load Swin ONNX model
-                logger.info(f"Loading Swin ONNX model from {swin_path}")
-                self.swin_session = ort.InferenceSession(swin_path, providers=providers)
-                logger.info(f"Swin ONNX model loaded with providers: {self.swin_session.get_providers()}")
+            #     # Load Swin ONNX model
+            #     logger.info(f"Loading Swin ONNX model from {swin_path}")
+            #     self.swin_session = ort.InferenceSession(swin_path, providers=providers)
+            #     logger.info(f"Swin ONNX model loaded with providers: {self.swin_session.get_providers()}")
                 
-            else:
-                # Load PyTorch YOLO detection model
-                logger.info(f"Loading YOLO model from {yolo_path}")
-                self.yolo_model = YOLO(yolo_path)
-                
-                # Load PyTorch Swin Transformer classification model
-                logger.info(f"Loading Swin Transformer from {swin_path}")
-                self.swin_model = SwinForImageClassification.from_pretrained(swin_path)
-                self.processor = AutoImageProcessor.from_pretrained(swin_path)
-                
-                # Move to device and set to eval mode
-                self.swin_model.to(self.device)
-                self.swin_model.eval()
+            # else:
+            # Load PyTorch YOLO detection model
+            logger.info(f"Loading YOLO model from {yolo_path}")
+            self.yolo_model = YOLO(yolo_path)
+            
+            # Load PyTorch Swin Transformer classification model
+            logger.info(f"Loading Swin Transformer from {swin_path}")
+            self.swin_model = SwinForImageClassification.from_pretrained(swin_path)
+            self.processor = AutoImageProcessor.from_pretrained(swin_path)
+            
+            # Move to device and set to eval mode
+            self.swin_model.to(self.device)
+            self.swin_model.eval()
             
             logger.info("Models loaded successfully")
             
@@ -188,15 +189,15 @@ class AnolePipeline:
         Returns:
             List of detections [x1, y1, x2, y2, confidence]
         """
-        if self.use_onnx:
-            detections = self._detect_lizards_onnx(image)
-        else:
-            results = self.yolo_model(image, conf=self.conf_threshold, iou=self.iou_threshold)[0]
-            
-            detections = []
-            if results.boxes is not None:
-                boxes = results.boxes.data.cpu().numpy()
-                for box in boxes:
+        # if self.use_onnx:
+        #     detections = self._detect_lizards_onnx(image)
+        # else:
+        results = self.yolo_model(image, conf=self.conf_threshold, iou=self.iou_threshold)[0]
+        
+        detections = []
+        if results.boxes is not None:
+            boxes = results.boxes.data.cpu().numpy()
+            for box in boxes:
                     x1, y1, x2, y2, conf, cls = box
                     detections.append([x1, y1, x2, y2, conf])
         
@@ -399,16 +400,16 @@ class AnolePipeline:
         Returns:
             Tuple of (class_id, confidence)
         """
-        if self.use_onnx:
-            return self._classify_species_onnx(cropped_image)
-        else:
-            # Preprocess image
-            inputs = self.processor(images=cropped_image, return_tensors="pt")
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
-            # Run inference
-            with torch.no_grad():
-                outputs = self.swin_model(**inputs)
+        # if self.use_onnx:
+        #     return self._classify_species_onnx(cropped_image)
+        # else:
+        # Preprocess image
+        inputs = self.processor(images=cropped_image, return_tensors="pt")
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        
+        # Run inference
+        with torch.no_grad():
+            outputs = self.swin_model(**inputs)
                 logits = outputs.logits
                 
                 # Get predicted class and confidence

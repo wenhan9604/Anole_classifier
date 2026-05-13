@@ -339,33 +339,7 @@ export class AnoleDetectionService {
    * Detect anoles with configurable inference location.
    */
   static async detect(imageFile: File, mode: DetectionMode = 'backend'): Promise<AnoleDetectionResult> {
-    if (mode === 'backend') {
-      return this.detectBackend(imageFile, true);
-    }
-    if (mode === 'backend-pytorch') {
-      return this.detectBackend(imageFile, true);
-    }
-    if (mode === 'auto') {
-      const useClient = await this.clientOnnxEnvironmentOk();
-      if (useClient) {
-        try {
-          return await this.detectFrontendOnnx(imageFile, 'auto');
-        } catch (error) {
-          console.warn('Auto: client ONNX failed, using server PyTorch:', error);
-          return this.detectBackend(imageFile, true);
-        }
-      }
-      return this.detectBackend(imageFile, true);
-    }
-    if (this.isOnnxFrontendMode(mode)) {
-      const pref = this.modeToOnnxPreference(mode);
-      try {
-        return await this.detectFrontendOnnx(imageFile, pref);
-      } catch (error) {
-        console.warn('Frontend ONNX failed, falling back to backend PyTorch:', error);
-        return this.detectBackend(imageFile, true);
-      }
-    }
+    // Always use backend PyTorch CPU
     return this.detectBackend(imageFile, true);
   }
 
@@ -440,33 +414,12 @@ export class AnoleDetectionService {
     mode: DetectionMode = 'backend',
   ): Promise<AnolePrediction> {
     try {
-      let resolvedMode: DetectionMode = mode;
-      if (mode === 'auto') {
-        resolvedMode = (await this.clientOnnxEnvironmentOk()) ? 'onnx-frontend-auto' : 'backend';
-      }
-
       const img = await this.loadImage(imageFile);
-
       const [x1, y1, x2, y2] = box;
       const width = x2 - x1;
       const height = y2 - y1;
 
       const croppedCanvas = await this.cropImage(img, x1, y1, width, height);
-
-      if (this.isOnnxFrontendMode(resolvedMode)) {
-        const pref = this.modeToOnnxPreference(resolvedMode);
-        await this.initializeOnnx(undefined, undefined, pref);
-
-        const classification = await OnnxDetectionService.classifyAnole(croppedCanvas);
-
-        return {
-          species: classification.class,
-          scientificName: this.getScientificName(classification.classId),
-          confidence: classification.score,
-          count: 1,
-          boundingBox: box,
-        };
-      }
 
       return new Promise((resolve, reject) => {
         croppedCanvas.toBlob(async (blob) => {
@@ -481,7 +434,7 @@ export class AnoleDetectionService {
             const formData = new FormData();
             formData.append('file', croppedFile);
 
-            const url = `${API_URL}/api/predict?use_onnx=${resolvedMode !== 'backend' && resolvedMode !== 'backend-pytorch'}`;
+            const url = `${API_URL}/api/predict?use_onnx=false`;
             const response = await fetch(url, {
               method: 'POST',
               body: formData,

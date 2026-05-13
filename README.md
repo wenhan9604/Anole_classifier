@@ -13,7 +13,7 @@ A full-stack web application for detecting and classifying 5 Florida anole speci
   2. Swin Transformer classification of cropped lizard images for species identification
 - **5 Species Support**: Green Anole, Brown Anole, Crested Anole, Knight Anole, Bark Anole
 - **Multi-Detection**: Can detect and classify multiple lizards in a single image
-- **Flexible Inference**: Choose between server-side (PyTorch/ONNX) or client-side (browser ONNX) inference
+- **Flexible Inference**: Server-side PyTorch inference on CPU
 - **Confidence Scoring**: Shows confidence levels for each species prediction with visual indicators
 - **Mobile Support**: Responsive design optimized for mobile devices
 
@@ -23,15 +23,13 @@ A full-stack web application for detecting and classifying 5 Florida anole speci
 
 ## Architecture
 
-- **Backend**: FastAPI server with PyTorch and ONNX Runtime support
+- **Backend**: FastAPI server with PyTorch
 - **Frontend**: React + TypeScript with Vite
 - **Models**: 
   - YOLOv8x for anole detection (640x640 input)
   - Swin Transformer Base for species classification (384x384 input)
 - **Inference Modes**:
   - **CPU (Default)**: PyTorch on server CPU - balanced performance
-  - **GPU**: PyTorch on server GPU - fastest for high-res images
-  - **Client-side**: ONNX in browser (WebAssembly) - no server load
 
 ## Quick Start
 
@@ -40,7 +38,6 @@ A full-stack web application for detecting and classifying 5 Florida anole speci
 **Backend:**
 - Python 3.9+
 - Conda (recommended)
-- GPU with CUDA (optional, for GPU inference)
 
 **Frontend:**
 - Node.js 18+
@@ -83,7 +80,7 @@ The application will be available at `http://localhost:5173`
 
 ## Inference Modes
 
-The application supports three inference modes, accessible via URL parameters:
+The application supports server-side CPU inference:
 
 ### 1. **CPU Mode (Default)** 
 ```
@@ -91,26 +88,8 @@ http://localhost:5173/predict
 ```
 - Uses PyTorch on server CPU
 - Good balance of speed and accuracy
-- Recommended for most use cases
+- Recommended for all use cases
 - No GPU required
-
-### 2. **GPU Mode**
-```
-http://localhost:5173/predict?gpu=server
-```
-- Uses PyTorch on server GPU (if available)
-- Fastest inference for high-resolution images
-- Requires CUDA-compatible GPU
-- Best for batch processing
-
-### 3. **Client-Side Mode**
-```
-http://localhost:5173/predict?gpu=client-side
-```
-- Runs ONNX models directly in your browser (WebAssembly)
-- No server load, privacy-preserving
-- Works offline after initial model download (~620 MB)
-- Slower but doesn't require server GPU
 
 ## Project Structure
 
@@ -124,8 +103,7 @@ Anole_classifier/
 │   │   ├── routers/              # API endpoints
 │   │   │   └── predict.py        # Prediction endpoints
 │   │   ├── services/             # Business logic
-│   │   │   ├── pipeline_inference.py      # PyTorch inference
-│   │   │   └── onnx_pipeline_inference.py # ONNX inference
+│   │   │   └── pipeline_inference.py      # PyTorch inference
 │   │   └── main.py               # FastAPI app initialization
 │   └── requirements.txt          # Python dependencies
 │
@@ -135,11 +113,10 @@ Anole_classifier/
 │   │   │   ├── LandingPage.tsx   # Welcome screen
 │   │   │   └── PredictionPage.tsx # Main classification interface
 │   │   ├── services/
-│   │   │   ├── OnnxDetectionService.ts   # Browser ONNX inference
 │   │   │   ├── AnoleDetectionService.ts  # Unified detection API
 │   │   │   └── config.ts                 # API configuration
 │   │   └── App.tsx               # Main app component
-│   ├── public/                   # ONNX WASM files
+│   ├── public/                   # Static assets
 │   └── package.json              # Node dependencies
 │
 ├── Dataset/  					  # Stores datasets
@@ -148,16 +125,13 @@ Anole_classifier/
 │   ├── models/                   # Trained ML models
 │   │   ├── yolov8x/             # YOLOv8x detection models
 │   │   │   ├── best.pt          # PyTorch weights
-│   │   │   └── best.onnx        # ONNX format
 │   │   ├── swin_transformer_base_lizard_v4/  # Swin classification
-│   │   ├── yolo_best.onnx       # Standalone YOLO ONNX
-│   │   └── swin_model.onnx      # Standalone Swin ONNX
 │   ├── notebooks/                
 │   │   ├── *.ipynb/             # Training notebooks
 │   ├── inference/           	 # Pipeline evaluation results are stored here
 │
 └── docs/                         # Documentation
-    ├── ONNX_SETUP.md            # ONNX setup guide
+
     ├── API_USAGE_GUIDE.md       # API usage examples
     └── ...
 ```
@@ -176,25 +150,13 @@ with open("lizard.jpg", "rb") as f:
     )
 print(response.json())
 
-# GPU inference
-response = requests.post(
-    "http://localhost:8000/api/predict?gpu=server",
-    files={"file": ("lizard.jpg", open("lizard.jpg", "rb"))}
-)
+
 ```
 
 ### cURL
 ```bash
 # Default CPU inference
 curl -X POST "http://localhost:8000/api/predict" \
-  -F "file=@lizard.jpg"
-
-# GPU inference
-curl -X POST "http://localhost:8000/api/predict?gpu=server" \
-  -F "file=@lizard.jpg"
-
-# ONNX inference
-curl -X POST "http://localhost:8000/api/predict?use_onnx=true" \
   -F "file=@lizard.jpg"
 ```
 
@@ -260,7 +222,7 @@ curl -X POST "http://localhost:8000/api/predict?use_onnx=true" \
 
 ## Documentation
 
-- [ONNX Setup Guide](docs/ONNX_SETUP.md) - Complete guide for ONNX inference
+
 - [API Usage Guide](docs/API_USAGE_GUIDE.md) - Detailed API documentation
 - [Frontend Quick Start](docs/FRONTEND_QUICKSTART.md) - Frontend development guide
 
