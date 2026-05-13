@@ -314,7 +314,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
     setState('analyzing');
     
     try {
-      const data = await AnoleDetectionService.detect(file, 'auto');
+      const data = await AnoleDetectionService.detect(file);
       
       if (data.predictions && data.predictions.length > 0) {
         setResult(data);
@@ -412,8 +412,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
         setReclassifyingIndex(index);
         const classification = await AnoleDetectionService.classifyRegion(
           selectedFile,
-          [x1, y1, x2, y2],
-          'auto'
+          [x1, y1, x2, y2]
         );
 
         const finalPredictions = [...result.predictions];
@@ -513,7 +512,7 @@ function ClassifyPanel({ inatStatus, selectedFile, setSelectedFile, preview, set
     
     try {
       toast.loading("Analyzing region...", { id: 'region-scan' });
-      const classification = await AnoleDetectionService.classifyRegion(selectedFile, finalBox, 'auto');
+      const classification = await AnoleDetectionService.classifyRegion(selectedFile, finalBox);
       
       const newPrediction: any = {
         species: classification.species,

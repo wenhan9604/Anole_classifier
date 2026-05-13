@@ -226,7 +226,7 @@ export default function PredictionPage() {
             ? `client-side ONNX (${AnoleDetectionService.modeToOnnxPreference(detectionMode)})`
             : "backend PyTorch-CPU (best.pt)";
       console.log(`Starting detection with ${modeLabel}...`);
-      const data = await AnoleDetectionService.detect(selectedFile, detectionMode);
+      const data = await AnoleDetectionService.detect(selectedFile);
       
       // Transform API response to match our DetectionResult interface
       const result: DetectionResult = {
@@ -411,8 +411,7 @@ export default function PredictionPage() {
         
         const classification = await AnoleDetectionService.classifyRegion(
           selectedFile,
-          [x1, y1, x2, y2],
-          detectionMode
+          [x1, y1, x2, y2]
         );
 
         // Update the prediction with new classification
@@ -537,9 +536,8 @@ export default function PredictionPage() {
       console.log(`Classifying drawn box: [${finalX1}, ${finalY1}, ${finalX2}, ${finalY2}]`);
       
       const classification = await AnoleDetectionService.classifyRegion(
-        selectedFile,
-        finalBox,
-        detectionMode
+          selectedFile,
+          finalBox
       );
       
       // Add to detection results
