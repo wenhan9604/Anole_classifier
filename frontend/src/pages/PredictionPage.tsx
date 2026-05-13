@@ -23,38 +23,11 @@ const FLORIDA_ANOLE_SPECIES = [
 ];
 
 /** Canonical mode for `<select>` (server paths collapse to `backend`). */
-function normalizeInferenceModeForSelect(mode: DetectionMode): DetectionMode {
-  if (mode === "backend-pytorch") return "backend";
-  if (mode === "onnx-frontend") return "onnx-frontend-auto";
-  return mode;
-}
 
-const INFERENCE_LOCATION_OPTIONS: { value: DetectionMode; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "backend", label: "Server — PyTorch (CPU)" },
-  { value: "onnx-frontend-auto", label: "This device — GPU if available (WebGPU or WASM)" },
-  { value: "onnx-frontend-wasm", label: "This device — WASM only (no WebGPU)" },
-  { value: "onnx-frontend-gpu", label: "This device — WebGPU only" },
-];
 
-function detectionModeToGpuQuery(mode: DetectionMode): string | null {
-  switch (mode) {
-    case "auto":
-      return null;
-    case "backend":
-    case "backend-pytorch":
-      return null;
-    case "onnx-frontend":
-    case "onnx-frontend-auto":
-      return "client-side";
-    case "onnx-frontend-wasm":
-      return "client-wasm";
-    case "onnx-frontend-gpu":
-      return "client-gpu";
-    default:
-      return null;
-  }
-}
+
+
+
 
 interface AlternateConfidence {
   classIndex: number;
@@ -90,7 +63,7 @@ export default function PredictionPage() {
   const [inatStatus, setInatStatus] = useState<iNaturalistAuthStatus | null>(null);
   const [inatStatusLoading, setInatStatusLoading] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [detectionMode, setDetectionMode] = useState<DetectionMode>('auto');
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>('backend');
   const [reclassifyingIndex, setReclassifyingIndex] = useState<number | null>(null);
   const [isRestored, setIsRestored] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -105,6 +78,9 @@ export default function PredictionPage() {
 
   // Inference mode from ?gpu=… (default / no param = Auto probe; client-side = WebGPU-first auto)
   useEffect(() => {
+    // Force backend
+    setDetectionMode('backend');
+    /*
     const gpuParam = searchParams.get('gpu');
     if (gpuParam === 'client-side' || gpuParam === 'client') {
       setDetectionMode('onnx-frontend-auto');
@@ -125,6 +101,7 @@ export default function PredictionPage() {
       setDetectionMode('auto');
       console.log('Auto inference (default; unrecognized ?gpu= value)');
     }
+    */
   }, [searchParams]);
 
   const refreshInatStatus = useCallback(async () => {
@@ -223,32 +200,7 @@ export default function PredictionPage() {
     };
   }, []);
 
-  const handleInferenceLocationChange = useCallback(
-    (mode: DetectionMode) => {
-      if (mode === "auto") {
-        AnoleDetectionService.invalidateClientOnnxProbe();
-      }
-      const canonical =
-        mode === "backend-pytorch"
-          ? "backend"
-          : mode === "onnx-frontend"
-            ? "onnx-frontend-auto"
-            : mode;
-      setDetectionMode(canonical);
-      setDetectionResult(null);
-      const gpu = detectionModeToGpuQuery(canonical);
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          if (gpu) next.set("gpu", gpu);
-          else next.delete("gpu");
-          return next;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
+
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -647,8 +599,7 @@ export default function PredictionPage() {
   return (
     <div className="container" style={{ textAlign: "center" }}>
       <h1 style={{ color: "#2E7D32", fontSize: "2.5rem", marginBottom: "0.5rem" }}>🦎 Lizard Lens</h1>
-      
-      {/* Back to home + inference location */}
+      {/* Navigation */}
       <div
         style={{
           marginBottom: "1.5rem",
@@ -669,60 +620,6 @@ export default function PredictionPage() {
         >
           ← Back to Home
         </Link>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.75rem",
-            maxWidth: "min(100%, 520px)",
-          }}
-        >
-          <label
-            htmlFor="inference-location"
-            style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}
-          >
-            Inference location
-          </label>
-          <select
-            id="inference-location"
-            value={normalizeInferenceModeForSelect(detectionMode)}
-            onChange={(e) =>
-              handleInferenceLocationChange(e.target.value as DetectionMode)
-            }
-            disabled={
-              isLoading ||
-              reclassifyingIndex !== null ||
-              isDrawing ||
-              isClassifyingDrawnBox
-            }
-            style={{
-              minWidth: "260px",
-              maxWidth: "100%",
-              padding: "8px 12px",
-              fontSize: "14px",
-              borderRadius: "8px",
-              border: "1px solid #ced4da",
-              backgroundColor: "#fff",
-              color: "#212529",
-              cursor:
-                isLoading ||
-                reclassifyingIndex !== null ||
-                isDrawing ||
-                isClassifyingDrawnBox
-                  ? "not-allowed"
-                  : "pointer",
-            }}
-          >
-            {INFERENCE_LOCATION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* Species Information */}

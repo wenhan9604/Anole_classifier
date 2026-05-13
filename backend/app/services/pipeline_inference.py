@@ -135,6 +135,8 @@ def _load_models() -> None:
     logger.info(f"Loading YOLO model from: {det_path}")
     logger.info(f"Model file exists: {os.path.exists(det_path)}")
     _yolo = YOLO(det_path)
+    # Force CPU inference for YOLO
+    _yolo.to("cpu")
     
     # Apply quantized fallback for Swin classification model (only if it's a local path)
     if os.path.exists(clf_id) or os.path.isdir(clf_id):
@@ -147,6 +149,8 @@ def _load_models() -> None:
     
     _swin = SwinForImageClassification.from_pretrained(clf_id)
     _processor = AutoImageProcessor.from_pretrained(clf_id)
+    # Force CPU inference for Swin Transformer
+    _swin.to("cpu")
     _swin.eval()
     logger.info(f"Successfully loaded YOLO model from: {det_path}")
 
