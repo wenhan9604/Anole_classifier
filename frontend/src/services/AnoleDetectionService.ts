@@ -338,7 +338,7 @@ export class AnoleDetectionService {
   /**
    * Detect anoles with configurable inference location.
    */
-  static async detect(imageFile: File, mode: DetectionMode = 'backend'): Promise<AnoleDetectionResult> {
+  static async detect(imageFile: File): Promise<AnoleDetectionResult> {
     // Always use backend PyTorch CPU
     return this.detectBackend(imageFile, true);
   }
@@ -411,7 +411,6 @@ export class AnoleDetectionService {
   static async classifyRegion(
     imageFile: File,
     box: [number, number, number, number],
-    mode: DetectionMode = 'backend',
   ): Promise<AnolePrediction> {
     try {
       const img = await this.loadImage(imageFile);
