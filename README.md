@@ -103,8 +103,7 @@ Anole_classifier/
 │   │   ├── routers/              # API endpoints
 │   │   │   └── predict.py        # Prediction endpoints
 │   │   ├── services/             # Business logic
-│   │   │   ├── pipeline_inference.py      # PyTorch inference
-│   │   │   └── onnx_pipeline_inference.py # ONNX inference
+│   │   │   └── pipeline_inference.py      # PyTorch inference
 │   │   └── main.py               # FastAPI app initialization
 │   └── requirements.txt          # Python dependencies
 │
@@ -114,11 +113,10 @@ Anole_classifier/
 │   │   │   ├── LandingPage.tsx   # Welcome screen
 │   │   │   └── PredictionPage.tsx # Main classification interface
 │   │   ├── services/
-│   │   │   ├── OnnxDetectionService.ts   # Browser ONNX inference
 │   │   │   ├── AnoleDetectionService.ts  # Unified detection API
 │   │   │   └── config.ts                 # API configuration
 │   │   └── App.tsx               # Main app component
-│   ├── public/                   # ONNX WASM files
+│   ├── public/                   # Static assets
 │   └── package.json              # Node dependencies
 │
 ├── Dataset/  					  # Stores datasets
@@ -127,16 +125,13 @@ Anole_classifier/
 │   ├── models/                   # Trained ML models
 │   │   ├── yolov8x/             # YOLOv8x detection models
 │   │   │   ├── best.pt          # PyTorch weights
-│   │   │   └── best.onnx        # ONNX format
 │   │   ├── swin_transformer_base_lizard_v4/  # Swin classification
-│   │   ├── yolo_best.onnx       # Standalone YOLO ONNX
-│   │   └── swin_model.onnx      # Standalone Swin ONNX
 │   ├── notebooks/                
 │   │   ├── *.ipynb/             # Training notebooks
 │   ├── inference/           	 # Pipeline evaluation results are stored here
 │
 └── docs/                         # Documentation
-    ├── ONNX_SETUP.md            # ONNX setup guide
+
     ├── API_USAGE_GUIDE.md       # API usage examples
     └── ...
 ```
@@ -227,7 +222,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 
 ## Documentation
 
-- [ONNX Setup Guide](docs/ONNX_SETUP.md) - Complete guide for ONNX inference
+
 - [API Usage Guide](docs/API_USAGE_GUIDE.md) - Detailed API documentation
 - [Frontend Quick Start](docs/FRONTEND_QUICKSTART.md) - Frontend development guide
 
